@@ -1,0 +1,24 @@
+h1 {
+  color: blue;
+  background: pink;
+}
+body {
+  background-color: green;
+}
+body {
+  color: #ff00aa;
+}
+li{
+  background-color: maroon;
+}
+li:nth-child(5){
+  background-color: yellow;
+}  
+
+#make-me-orange {
+  background-color: black;
+}
+
+img {
+  width: 100%;
+}
