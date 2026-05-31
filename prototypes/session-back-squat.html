@@ -12,9 +12,11 @@
     --ink-soft: #8a8a8e;
     --ink-faint: #c4c4c8;
     --hair: #e6e6e8;
-    --accent: #f06400;          /* the orange */
+    --accent: #f06400;
     --accent-tint: #fdf0e6;
     --accent-ink: #c2510a;
+    --good: #1f9d57;
+    --good-tint: #e9f7ef;
     --radius: 16px;
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -23,10 +25,7 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-  html, body {
-    height: 100%;
-    background: #000;            /* device frame backdrop */
-  }
+  html, body { height: 100%; background: #000; }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
@@ -37,7 +36,6 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Phone viewport — fills the screen on a real phone, framed on desktop */
   .device {
     position: relative;
     width: 100%;
@@ -64,37 +62,24 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.10), 0 6px 18px rgba(0,0,0,0.06);
     border: 0.5px solid rgba(0,0,0,0.05);
     cursor: pointer;
-    transition: transform .12s ease, background .12s ease;
+    transition: transform .12s ease;
   }
   .floating:active { transform: scale(0.92); }
   .floating.back  { left: max(16px, env(safe-area-inset-left)); }
   .floating.edit  { right: max(16px, env(safe-area-inset-right)); }
   .floating svg { width: 20px; height: 20px; }
-  .floating.back svg  { stroke: var(--ink); fill: none; stroke-width: 2.25; }
-  .floating.edit svg  { stroke: var(--accent); fill: none; stroke-width: 2; }
+  .floating.back svg { stroke: var(--ink); fill: none; stroke-width: 2.25; }
+  .floating.edit svg { stroke: var(--accent); fill: none; stroke-width: 2; }
 
   /* ---------- Scroll area ---------- */
   .scroll {
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: calc(var(--safe-top) + 74px) 22px 150px;
+    padding: calc(var(--safe-top) + 74px) 22px 168px;
   }
 
-  .eyebrow {
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    font-weight: 600;
-  }
-
-  .crumb {
-    color: var(--ink-soft);
-    font-size: 0.95rem;
-    font-weight: 500;
-    margin-bottom: 2px;
-  }
+  .crumb { color: var(--ink-soft); font-size: 0.95rem; font-weight: 500; margin-bottom: 2px; }
 
   h1 {
     font-size: 2.5rem;
@@ -105,143 +90,139 @@
   }
 
   .cues {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--ink-soft);
-    font-size: 0.95rem;
-    font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--ink-soft); font-size: 0.95rem; font-weight: 500;
   }
   .cues svg { width: 14px; height: 14px; stroke: var(--ink-soft); stroke-width: 2.5; fill: none; }
 
-  .rule { height: 1px; background: var(--hair); margin: 20px 0 6px; }
+  /* ---------- Warmup: collapsed completed strip ---------- */
+  .warmstrip {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 22px; padding: 12px 14px;
+    background: var(--surface);
+    border-radius: 12px;
+    color: var(--ink-soft);
+    font-size: 0.92rem; font-weight: 500;
+  }
+  .warmstrip .check {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--good); display: grid; place-items: center; flex: none;
+  }
+  .warmstrip .check svg { width: 11px; height: 11px; stroke: #fff; stroke-width: 3; fill: none; }
+  .warmstrip .ramp { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .warmstrip .chev { margin-left: auto; color: var(--ink-faint); }
+  .warmstrip .chev svg { width: 16px; height: 16px; stroke: var(--ink-faint); stroke-width: 2.5; fill: none; }
 
-  /* ---------- Set table ---------- */
+  /* ---------- Working sets section ---------- */
+  .section-label {
+    margin: 26px 2px 6px;
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
+  }
   .col-head {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 30px 1fr 1.25fr 28px;
     align-items: end;
-    padding: 8px 2px 12px;
+    padding: 4px 2px 8px;
+    column-gap: 8px;
   }
   .col-head span {
-    font-size: 0.7rem;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    font-weight: 600;
+    font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
   }
-  .col-head .c-weight { text-align: left; }
-  .col-head .c-reps   { text-align: left; padding-left: 30px; }
-  .col-head .c-sets   { text-align: right; }
+  .col-head .c-actual { color: var(--accent); }
 
-  .set {
+  .logrow {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 30px 1fr 1.25fr 28px;
     align-items: center;
-    padding: 14px 2px;
+    column-gap: 8px;
+    padding: 16px 2px;
     border-top: 1px solid var(--hair);
-    column-gap: 6px;
+    cursor: pointer;
+    transition: background .12s ease;
   }
-  .set .weight {
-    font-size: 3.1rem;
-    font-weight: 350;
-    letter-spacing: -0.04em;
+  .logrow:active { background: #fafafa; }
+
+  .logrow .setno {
+    font-size: 0.95rem; font-weight: 700; color: var(--ink-soft);
     font-variant-numeric: tabular-nums;
-    line-height: 1;
   }
-  .set .reps {
-    font-size: 3.1rem;
-    font-weight: 350;
-    letter-spacing: -0.04em;
+
+  /* Target = ghosted prescription */
+  .target {
+    font-size: 1.6rem; font-weight: 300; letter-spacing: -0.02em;
+    color: var(--ink-faint);
     font-variant-numeric: tabular-nums;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    white-space: nowrap;
+  }
+  .target .x { font-size: 1.1rem; padding: 0 2px; }
+
+  /* Actual = what you did */
+  .actual {
+    font-size: 2.2rem; font-weight: 700; letter-spacing: -0.03em;
     color: var(--ink);
-  }
-  .set .reps .x,
-  .set .sets .x { color: var(--ink-faint); font-weight: 300; font-size: 2.2rem; }
-  .set .sets {
-    font-size: 3.1rem;
-    font-weight: 350;
-    letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
-    line-height: 1;
-    text-align: right;
-    display: flex;
+    white-space: nowrap;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .actual .x { font-size: 1.3rem; font-weight: 300; color: var(--ink-faint); }
+  .actual .unit { font-size: 0.95rem; font-weight: 500; color: var(--ink-soft); }
+
+  /* Empty actual = tap to log */
+  .logrow.pending .actual {
+    font-size: 1.05rem; font-weight: 600; color: var(--accent);
     align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
   }
+  .logrow.pending { background: linear-gradient(90deg, rgba(240,100,0,0.04), transparent 70%); }
 
-  /* Warmup ramp reads as quiet context */
-  .set.warmup .weight,
-  .set.warmup .reps { color: #555; font-weight: 300; }
-  .set.warmup .sets { color: var(--ink-faint); font-size: 1rem; align-self: center; }
-
-  /* Working set — the decision */
-  .set.working {
-    border-top: 1.5px solid var(--ink);
-    padding-top: 18px;
-    padding-bottom: 4px;
+  /* status dot */
+  .status { display: grid; place-items: center; }
+  .status .dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1.5px solid var(--ink-faint);
+    display: grid; place-items: center;
+    transition: all .15s ease;
   }
-  .set.working .weight,
-  .set.working .reps,
-  .set.working .sets { font-weight: 800; color: var(--ink); }
-  .set.working .reps .x,
-  .set.working .sets .x { color: var(--ink-faint); font-weight: 300; }
-  .set.working .label {
-    grid-column: 1 / -1;
-    margin-top: 6px;
-    font-size: 0.7rem;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 700;
-  }
+  .logrow.done .status .dot { background: var(--good); border-color: var(--good); }
+  .logrow.done .status .dot svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 3; fill: none; }
+  .status .dot svg { width: 0; height: 0; }
 
-  /* ---------- Flag (constraint surfaced at point of action) ---------- */
+  /* beat-target / under-target hint under the actual */
+  .delta {
+    grid-column: 3 / 4;
+    font-size: 0.74rem; font-weight: 600; margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .delta.up { color: var(--good); }
+  .delta.down { color: var(--accent-ink); }
+
+  /* ---------- Flag ---------- */
   .flag {
-    margin-top: 20px;
+    margin-top: 22px;
     background: var(--accent-tint);
     border-left: 3px solid var(--accent);
     border-radius: 0 12px 12px 0;
     padding: 14px 16px;
   }
   .flag .tag {
-    font-size: 0.7rem;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--accent-ink);
-    font-weight: 700;
-    margin-bottom: 4px;
+    font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 700; margin-bottom: 4px;
   }
   .flag p { font-size: 1.02rem; line-height: 1.42; color: #2a2118; }
 
   /* ---------- Notes ---------- */
-  .notes { margin-top: 26px; }
+  .notes { margin-top: 24px; }
   .notes label {
     display: block;
-    font-size: 0.7rem;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    font-weight: 600;
-    margin-bottom: 10px;
+    font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin-bottom: 10px;
   }
   .notes textarea {
-    width: 100%;
-    min-height: 92px;
-    resize: none;
-    border: 1px solid var(--hair);
-    border-radius: 14px;
-    padding: 14px 16px;
-    font: inherit;
-    font-size: 1.02rem;
-    line-height: 1.45;
-    color: var(--ink);
-    background: var(--surface);
+    width: 100%; min-height: 84px; resize: none;
+    border: 1px solid var(--hair); border-radius: 14px;
+    padding: 14px 16px; font: inherit; font-size: 1.02rem; line-height: 1.45;
+    color: var(--ink); background: var(--surface);
   }
   .notes textarea::placeholder { color: var(--ink-faint); }
   .notes textarea:focus { outline: none; border-color: var(--accent); background: #fff; }
@@ -249,56 +230,36 @@
   /* ---------- Bottom action ---------- */
   .dock {
     position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 0;
-    width: 100%;
-    max-width: 430px;
+    left: 50%; transform: translateX(-50%); bottom: 0;
+    width: 100%; max-width: 430px;
     padding: 14px 20px calc(18px + var(--safe-bottom));
     background: linear-gradient(to top, var(--bg) 62%, rgba(255,255,255,0));
     z-index: 20;
   }
-  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .progresshint {
+    text-align: center; font-size: 0.82rem; font-weight: 600;
+    color: var(--ink-soft); margin-bottom: 10px;
+  }
+  .progresshint b { color: var(--ink); }
   .btn {
-    width: 100%;
-    border: none;
-    border-radius: 16px;
-    padding: 18px;
-    font: inherit;
-    font-size: 1.08rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: transform .1s ease, opacity .1s ease;
+    width: 100%; border: none; border-radius: 16px; padding: 18px;
+    font: inherit; font-size: 1.08rem; font-weight: 700; cursor: pointer;
+    transition: transform .1s ease, opacity .15s ease, background .15s ease;
   }
   .btn:active { transform: scale(0.985); }
   .btn.primary { background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(240,100,0,0.32); }
-  .btn.secondary {
-    background: transparent;
-    color: var(--ink-soft);
-    font-weight: 600;
-    padding: 6px;
-    font-size: 0.98rem;
-    box-shadow: none;
-  }
-  .btn.secondary u { text-decoration: none; color: var(--accent-ink); font-weight: 700; }
+  .btn.primary.muted { background: var(--ink-faint); box-shadow: none; }
 
-  /* tiny toast for the prototype */
+  /* toast */
   .toast {
-    position: fixed;
-    left: 50%; bottom: calc(120px + var(--safe-bottom));
+    position: fixed; left: 50%; bottom: calc(120px + var(--safe-bottom));
     transform: translateX(-50%) translateY(20px);
-    background: var(--ink);
-    color: #fff;
-    font-size: 0.92rem;
-    font-weight: 600;
-    padding: 12px 18px;
-    border-radius: 12px;
-    opacity: 0;
-    pointer-events: none;
+    background: var(--ink); color: #fff;
+    font-size: 0.92rem; font-weight: 600;
+    padding: 12px 18px; border-radius: 12px;
+    opacity: 0; pointer-events: none;
     transition: opacity .25s ease, transform .25s ease;
-    z-index: 50;
-    max-width: 80%;
-    text-align: center;
+    z-index: 50; max-width: 82%; text-align: center;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
@@ -306,13 +267,11 @@
 <body>
   <div class="device">
 
-    <!-- Floating back: goes to workout level -->
     <button class="floating back" aria-label="Back to Lower Body" onclick="toast('← Back to Lower Body')">
       <svg viewBox="0 0 24 24"><polyline points="15 5 8 12 15 19"/></svg>
     </button>
 
-    <!-- Floating edit: elevated from inline -->
-    <button class="floating edit" aria-label="Edit this exercise" onclick="toast('Edit mode')">
+    <button class="floating edit" aria-label="Edit this exercise" onclick="toast('Edit prescription')">
       <svg viewBox="0 0 24 24"><path d="M14 5l5 5M4 20l1.2-4.2L16 5l3 3L8.2 18.8 4 20z"/></svg>
     </button>
 
@@ -321,49 +280,57 @@
       <h1>Back Squat</h1>
       <span class="cues">Cues <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
 
+      <!-- Warmup ramp: already done, collapsed -->
+      <div class="warmstrip" onclick="toast('Warmup — 45 · 95 · 115 · 135')">
+        <span class="check"><svg viewBox="0 0 24 24"><polyline points="4 12 9 17 20 6"/></svg></span>
+        <span>Warmup</span>
+        <span class="ramp">45 · 95 · 115 · 135</span>
+        <span class="chev"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></span>
+      </div>
+
+      <!-- Working sets: target -> actual logging -->
+      <div class="section-label">Working sets · 155 × 5 prescribed</div>
       <div class="col-head">
-        <span class="c-weight">Weight</span>
-        <span class="c-reps">Reps</span>
-        <span class="c-sets">Sets</span>
+        <span></span>
+        <span>Target</span>
+        <span class="c-actual">Actual</span>
+        <span></span>
       </div>
 
-      <!-- Warmup ramp — quiet context -->
-      <div class="set warmup">
-        <div class="weight">45</div>
-        <div class="reps"><span class="x">×</span>9</div>
-        <div class="sets">×1</div>
-      </div>
-      <div class="set warmup">
-        <div class="weight">95</div>
-        <div class="reps"><span class="x">×</span>7</div>
-        <div class="sets">×1</div>
-      </div>
-      <div class="set warmup">
-        <div class="weight">115</div>
-        <div class="reps"><span class="x">×</span>5</div>
-        <div class="sets">×1</div>
-      </div>
-      <div class="set warmup">
-        <div class="weight">135</div>
-        <div class="reps"><span class="x">×</span>3</div>
-        <div class="sets">×1</div>
+      <div id="sets">
+        <!-- set 1: logged, beat target -->
+        <div class="logrow done" data-target-w="155" data-target-r="5" onclick="cycle(this)">
+          <div class="setno">1</div>
+          <div class="target">155<span class="x">×</span>5</div>
+          <div class="actual">155 <span class="x">×</span> 5 <span class="unit">lb</span></div>
+          <div class="status"><span class="dot"><svg viewBox="0 0 24 24"><polyline points="4 12 9 17 20 6"/></svg></span></div>
+        </div>
+
+        <!-- set 2: logged, one rep short -->
+        <div class="logrow done" data-target-w="155" data-target-r="5" onclick="cycle(this)">
+          <div class="setno">2</div>
+          <div class="target">155<span class="x">×</span>5</div>
+          <div class="actual">155 <span class="x">×</span> 4 <span class="unit">lb</span></div>
+          <div class="status"><span class="dot"><svg viewBox="0 0 24 24"><polyline points="4 12 9 17 20 6"/></svg></span></div>
+          <div class="delta down">1 rep short</div>
+        </div>
+
+        <!-- set 3: pending -->
+        <div class="logrow pending" data-target-w="155" data-target-r="5" onclick="cycle(this)">
+          <div class="setno">3</div>
+          <div class="target">155<span class="x">×</span>5</div>
+          <div class="actual">Tap to log</div>
+          <div class="status"><span class="dot"></span></div>
+        </div>
       </div>
 
-      <!-- Working set — the decision -->
-      <div class="set working">
-        <div class="weight">155</div>
-        <div class="reps"><span class="x">×</span>5</div>
-        <div class="sets"><span class="x">×</span>3</div>
-        <div class="label">Working set</div>
-      </div>
-
-      <!-- Constraint surfaced at the point of action -->
+      <!-- Constraint at point of action -->
       <div class="flag">
         <div class="tag">Flag</div>
         <p>Watch right knee — meniscus awareness. Report back.</p>
       </div>
 
-      <!-- Episodic layer, written by the user -->
+      <!-- Episodic note -->
       <div class="notes">
         <label for="note">Notes for your coach</label>
         <textarea id="note" placeholder="Right knee held up fine. Felt conservative — could go heavier next time."></textarea>
@@ -372,10 +339,8 @@
 
     <!-- Bottom dock -->
     <div class="dock">
-      <div class="actions">
-        <button class="btn primary" onclick="toast('Logged as prescribed ✓')">Log as prescribed</button>
-        <button class="btn secondary" onclick="toast('Adjust actuals')">Did something different? <u>Log as performed</u></button>
-      </div>
+      <div class="progresshint" id="hint"><b>2 of 3</b> sets logged</div>
+      <button class="btn primary muted" id="cta" onclick="finish()">Log 1 more set</button>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -388,8 +353,53 @@
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(t);
-    t = setTimeout(() => el.classList.remove('show'), 1600);
+    t = setTimeout(() => el.classList.remove('show'), 1500);
   }
+
+  // Tap a set to log it as prescribed (prototype). Tap again to clear.
+  function cycle(row) {
+    const w = row.dataset.targetW, r = row.dataset.targetR;
+    const actual = row.querySelector('.actual');
+    const oldDelta = row.querySelector('.delta');
+    if (oldDelta) oldDelta.remove();
+
+    if (row.classList.contains('pending')) {
+      row.classList.remove('pending');
+      row.classList.add('done');
+      actual.innerHTML = w + ' <span class="x">×</span> ' + r + ' <span class="unit">lb</span>';
+      toast('Set logged as prescribed');
+    } else {
+      row.classList.remove('done');
+      row.classList.add('pending');
+      actual.innerHTML = 'Tap to log';
+    }
+    refresh();
+  }
+
+  function refresh() {
+    const rows = [...document.querySelectorAll('.logrow')];
+    const done = rows.filter(r => r.classList.contains('done')).length;
+    const total = rows.length;
+    document.getElementById('hint').innerHTML = '<b>' + done + ' of ' + total + '</b> sets logged';
+    const cta = document.getElementById('cta');
+    if (done === total) {
+      cta.classList.remove('muted');
+      cta.textContent = 'Finish exercise';
+    } else {
+      cta.classList.add('muted');
+      const left = total - done;
+      cta.textContent = 'Log ' + left + ' more set' + (left > 1 ? 's' : '');
+    }
+  }
+
+  function finish() {
+    const done = document.querySelectorAll('.logrow.done').length;
+    const total = document.querySelectorAll('.logrow').length;
+    if (done < total) { toast('Log the last set first — or mark it skipped'); return; }
+    toast('Back Squat complete ✓  → next: Romanian Deadlift');
+  }
+
+  refresh();
 </script>
 </body>
 </html>
