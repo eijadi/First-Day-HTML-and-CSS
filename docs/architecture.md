@@ -173,33 +173,78 @@ A few hundred tokens, mostly stable between calls → **prompt-caches cheaply**,
 **enforces safety**, and **is fully legible** because every line traces to an
 editable row.
 
-### Interaction modes
-- **Conversational coaching** — free text, streamed token-by-token for a live feel.
-- **Structured generation** (a plan, a weekly split) — use the model's
-  structured-output / tool-use to return clean JSON the UI renders natively.
+### Two query types
+
+Every request to the LLM is one of two things. The distinction drives which model is used and what the UI does with the response.
+
+**1. Workout query** — "What do I train today?" / "How was my form?"
+The most common interaction. Streamed token-by-token so it feels live. Haiku handles these. The response is a structured session suggestion the UI renders as a workout card: a name, estimated duration, a coaching note, and a list of exercises. Each exercise carries a target — either an absolute weight (when history exists) or an RPE target (effort level 1–10, used for accessories or unfamiliar movements). When the user starts the session, each exercise becomes a logging row showing target alongside what they actually did.
+
+```json
+{
+  "type": "session_suggestion",
+  "label": "Lower — Squat Focus",
+  "estimated_duration_min": 60,
+  "coach_note": "You hit 275×5 strong last time. Push to 280 today.",
+  "exercises": [
+    {
+      "name": "Back Squat",
+      "sets": 5, "reps": "5",
+      "load": { "type": "absolute", "value": 280, "unit": "lb" },
+      "rpe_target": 8
+    },
+    {
+      "name": "Leg Press",
+      "sets": 3, "reps": "10-12",
+      "load": { "type": "rpe", "rpe_target": 7 }
+    }
+  ]
+}
+```
+
+**2. Planning query** — "Give me a program" / "Build me a 4-day split"
+Less frequent. Sonnet handles these — they require more reasoning. The response is a weekly split: named days, each with a label and training focus. The user can tap any day to get a full session suggestion for it.
+
+```json
+{
+  "type": "weekly_split",
+  "name": "Upper/Lower 4-Day",
+  "days": [
+    { "day": "Monday",   "label": "Lower A — Squat",  "focus": "squat strength" },
+    { "day": "Tuesday",  "label": "Upper A — Push",   "focus": "pressing"       },
+    { "day": "Thursday", "label": "Lower B — Hinge",  "focus": "deadlift"       },
+    { "day": "Friday",   "label": "Upper B — Pull",   "focus": "back/biceps"    }
+  ]
+}
+```
+
+**Safety check on all structured output:** the backend validates that no returned exercise appears in the user's `movements_to_avoid` list before sending to the client. If it does, the request is regenerated. This is a hard check — not a hope that the model remembered the constraint.
 
 ## 7. Data placement
 
-- **On-device (SwiftData):** history, in-progress logging, cached profile —
-  fast, offline at the gym, strong privacy.
-- **Server (Supabase):** authoritative profile / constraints / goals (so
-  context assembly and caps run where the key lives), usage counters,
-  interaction log.
+This app requires a live connection — coaching is online-only by design. There is no offline mode; if the connection drops, the app shows a clear unavailable state.
 
-The **constraints layer is server-authoritative** so a safety rule is never
-skipped because a device was offline.
+- **On-device (SwiftData):** in-progress workout logging, cached profile — fast UI, strong privacy.
+- **Server (Supabase):** authoritative profile / constraints / goals, LLM API key, context assembly, usage counters, interaction log.
+
+The **constraints layer is server-authoritative** so a safety rule can never be stale or out of sync.
 
 ## 8. Cost & pricing
 
+The developer pays for inference; users pay a subscription. A realistic active user has 3–4 gym sessions/week with a few coaching messages each — roughly 15–20 Haiku interactions and 1–2 Sonnet plan generations per month.
+
 Per substantive interaction (≈3k input + 1k output tokens):
 
-| Model tier | ~per interaction | ~per active user / month |
-|---|---|---|
-| Haiku-class | ~$0.005 | $0.30–1.00 |
-| Sonnet-class | ~$0.02–0.03 | $2–5 |
+| Query type | Model | ~per interaction | ~per active user / month |
+|---|---|---|---|
+| Workout (coaching) | Haiku | ~$0.006 | ~$0.12 |
+| Planning | Sonnet | ~$0.024 | ~$0.05 (2×/month) |
 
-Mitigations: **prompt caching** (stable context is cached), **model routing**
-(Haiku for routine, Sonnet when reasoning matters), **daily usage caps**.
+**Total inference cost: ~$0.17/active user/month.**
+
+Apple Small Business Program takes ~15%, leaving ~$2.54/month from a $2.99 subscription. Net margin after inference: **~$2.37/user/month.**
+
+Mitigations: **prompt caching** (stable context re-use), **model routing** (Haiku for workout queries, Sonnet for planning), **daily usage cap** (protects against outlier heavy users; ~5 coaching interactions/day is a natural ceiling that still feels generous).
 
 **Pricing model:** freemium → **3-month free trial → $2.99/mo auto-renewing
 subscription.** Recurring (not lifetime), because the app has a recurring
@@ -213,6 +258,7 @@ standard library to manage it.
   The onboarding, editable memory, logging, and coaching experience are what
   make this a real app — and they're also the differentiation.
 - **Sign in with Apple** for auth.
+- **Account deletion (required):** Apple Guideline 5.1.1 has mandated in-app account deletion since 2022. The app must provide a way to delete the account and all associated data (profile, constraints, goals, history, interaction log) from within the app itself.
 - **Privacy:** keep as much on-device as possible to simplify privacy labels and
   reinforce the personal ethos.
 
@@ -223,7 +269,7 @@ standard library to manage it.
 2. **Onboarding → context store:** the editable-memory feature (the core bet).
 3. **Workout logging + coaching loop** using that context.
 4. **Usage caps + polish + TestFlight** (real-device testing at the gym).
-5. **Optional:** bring-your-own-key setting; paid tier via RevenueCat.
+5. **Paid tier via RevenueCat + App Store submission.**
 
 ## 11. Environment note
 
