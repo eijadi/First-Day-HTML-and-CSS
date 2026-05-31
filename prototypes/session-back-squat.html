@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Session — Back Squat</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f4f4f5;
+    --ink: #0a0a0a;
+    --ink-soft: #8a8a8e;
+    --ink-faint: #c4c4c8;
+    --hair: #e6e6e8;
+    --accent: #f06400;          /* the orange */
+    --accent-tint: #fdf0e6;
+    --accent-ink: #c2510a;
+    --radius: 16px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    font-size: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: #000;            /* device frame backdrop */
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Phone viewport — fills the screen on a real phone, framed on desktop */
+  .device {
+    position: relative;
+    width: 100%;
+    max-width: 430px;
+    min-height: 100dvh;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- Floating controls ---------- */
+  .floating {
+    position: fixed;
+    top: calc(var(--safe-top) + 14px);
+    z-index: 30;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.10), 0 6px 18px rgba(0,0,0,0.06);
+    border: 0.5px solid rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease;
+  }
+  .floating:active { transform: scale(0.92); }
+  .floating.back  { left: max(16px, env(safe-area-inset-left)); }
+  .floating.edit  { right: max(16px, env(safe-area-inset-right)); }
+  .floating svg { width: 20px; height: 20px; }
+  .floating.back svg  { stroke: var(--ink); fill: none; stroke-width: 2.25; }
+  .floating.edit svg  { stroke: var(--accent); fill: none; stroke-width: 2; }
+
+  /* ---------- Scroll area ---------- */
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: calc(var(--safe-top) + 74px) 22px 150px;
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+
+  .crumb {
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+    margin: 2px 0 6px;
+  }
+
+  .cues {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .cues svg { width: 14px; height: 14px; stroke: var(--ink-soft); stroke-width: 2.5; fill: none; }
+
+  .rule { height: 1px; background: var(--hair); margin: 20px 0 6px; }
+
+  /* ---------- Set table ---------- */
+  .col-head {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    padding: 8px 2px 12px;
+  }
+  .col-head span {
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .col-head .c-weight { text-align: left; }
+  .col-head .c-reps   { text-align: left; padding-left: 30px; }
+  .col-head .c-sets   { text-align: right; }
+
+  .set {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 14px 2px;
+    border-top: 1px solid var(--hair);
+    column-gap: 6px;
+  }
+  .set .weight {
+    font-size: 3.1rem;
+    font-weight: 350;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .set .reps {
+    font-size: 3.1rem;
+    font-weight: 350;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ink);
+  }
+  .set .reps .x,
+  .set .sets .x { color: var(--ink-faint); font-weight: 300; font-size: 2.2rem; }
+  .set .sets {
+    font-size: 3.1rem;
+    font-weight: 350;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: right;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* Warmup ramp reads as quiet context */
+  .set.warmup .weight,
+  .set.warmup .reps { color: #555; font-weight: 300; }
+  .set.warmup .sets { color: var(--ink-faint); font-size: 1rem; align-self: center; }
+
+  /* Working set — the decision */
+  .set.working {
+    border-top: 1.5px solid var(--ink);
+    padding-top: 18px;
+    padding-bottom: 4px;
+  }
+  .set.working .weight,
+  .set.working .reps,
+  .set.working .sets { font-weight: 800; color: var(--ink); }
+  .set.working .reps .x,
+  .set.working .sets .x { color: var(--ink-faint); font-weight: 300; }
+  .set.working .label {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* ---------- Flag (constraint surfaced at point of action) ---------- */
+  .flag {
+    margin-top: 20px;
+    background: var(--accent-tint);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 12px 12px 0;
+    padding: 14px 16px;
+  }
+  .flag .tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .flag p { font-size: 1.02rem; line-height: 1.42; color: #2a2118; }
+
+  /* ---------- Notes ---------- */
+  .notes { margin-top: 26px; }
+  .notes label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .notes textarea {
+    width: 100%;
+    min-height: 92px;
+    resize: none;
+    border: 1px solid var(--hair);
+    border-radius: 14px;
+    padding: 14px 16px;
+    font: inherit;
+    font-size: 1.02rem;
+    line-height: 1.45;
+    color: var(--ink);
+    background: var(--surface);
+  }
+  .notes textarea::placeholder { color: var(--ink-faint); }
+  .notes textarea:focus { outline: none; border-color: var(--accent); background: #fff; }
+
+  /* ---------- Bottom action ---------- */
+  .dock {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: 100%;
+    max-width: 430px;
+    padding: 14px 20px calc(18px + var(--safe-bottom));
+    background: linear-gradient(to top, var(--bg) 62%, rgba(255,255,255,0));
+    z-index: 20;
+  }
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn {
+    width: 100%;
+    border: none;
+    border-radius: 16px;
+    padding: 18px;
+    font: inherit;
+    font-size: 1.08rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .1s ease, opacity .1s ease;
+  }
+  .btn:active { transform: scale(0.985); }
+  .btn.primary { background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(240,100,0,0.32); }
+  .btn.secondary {
+    background: transparent;
+    color: var(--ink-soft);
+    font-weight: 600;
+    padding: 6px;
+    font-size: 0.98rem;
+    box-shadow: none;
+  }
+  .btn.secondary u { text-decoration: none; color: var(--accent-ink); font-weight: 700; }
+
+  /* tiny toast for the prototype */
+  .toast {
+    position: fixed;
+    left: 50%; bottom: calc(120px + var(--safe-bottom));
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 12px 18px;
+    border-radius: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+    z-index: 50;
+    max-width: 80%;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div class="device">
+
+    <!-- Floating back: goes to workout level -->
+    <button class="floating back" aria-label="Back to Lower Body" onclick="toast('← Back to Lower Body')">
+      <svg viewBox="0 0 24 24"><polyline points="15 5 8 12 15 19"/></svg>
+    </button>
+
+    <!-- Floating edit: elevated from inline -->
+    <button class="floating edit" aria-label="Edit this exercise" onclick="toast('Edit mode')">
+      <svg viewBox="0 0 24 24"><path d="M14 5l5 5M4 20l1.2-4.2L16 5l3 3L8.2 18.8 4 20z"/></svg>
+    </button>
+
+    <div class="scroll">
+      <div class="crumb">Lower Body</div>
+      <h1>Back Squat</h1>
+      <span class="cues">Cues <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
+
+      <div class="col-head">
+        <span class="c-weight">Weight</span>
+        <span class="c-reps">Reps</span>
+        <span class="c-sets">Sets</span>
+      </div>
+
+      <!-- Warmup ramp — quiet context -->
+      <div class="set warmup">
+        <div class="weight">45</div>
+        <div class="reps"><span class="x">×</span>9</div>
+        <div class="sets">×1</div>
+      </div>
+      <div class="set warmup">
+        <div class="weight">95</div>
+        <div class="reps"><span class="x">×</span>7</div>
+        <div class="sets">×1</div>
+      </div>
+      <div class="set warmup">
+        <div class="weight">115</div>
+        <div class="reps"><span class="x">×</span>5</div>
+        <div class="sets">×1</div>
+      </div>
+      <div class="set warmup">
+        <div class="weight">135</div>
+        <div class="reps"><span class="x">×</span>3</div>
+        <div class="sets">×1</div>
+      </div>
+
+      <!-- Working set — the decision -->
+      <div class="set working">
+        <div class="weight">155</div>
+        <div class="reps"><span class="x">×</span>5</div>
+        <div class="sets"><span class="x">×</span>3</div>
+        <div class="label">Working set</div>
+      </div>
+
+      <!-- Constraint surfaced at the point of action -->
+      <div class="flag">
+        <div class="tag">Flag</div>
+        <p>Watch right knee — meniscus awareness. Report back.</p>
+      </div>
+
+      <!-- Episodic layer, written by the user -->
+      <div class="notes">
+        <label for="note">Notes for your coach</label>
+        <textarea id="note" placeholder="Right knee held up fine. Felt conservative — could go heavier next time."></textarea>
+      </div>
+    </div>
+
+    <!-- Bottom dock -->
+    <div class="dock">
+      <div class="actions">
+        <button class="btn primary" onclick="toast('Logged as prescribed ✓')">Log as prescribed</button>
+        <button class="btn secondary" onclick="toast('Adjust actuals')">Did something different? <u>Log as performed</u></button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+<script>
+  let t;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(t);
+    t = setTimeout(() => el.classList.remove('show'), 1600);
+  }
+</script>
+</body>
+</html>
