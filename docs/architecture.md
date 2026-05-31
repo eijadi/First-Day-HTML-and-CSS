@@ -1,0 +1,279 @@
+# Workout Coach App — Architecture
+
+> An LLM-powered weightlifting coach for iOS. The product's wedge is
+> **legibility and personal experience**: the user can see, understand, and
+> edit what the model knows about them, and the coaching is genuinely tailored
+> as a result.
+
+## 1. Product thesis
+
+Most AI fitness apps hide the model's understanding of the user behind a chat
+box. This app makes that understanding the centerpiece. The user maintains a
+structured, editable picture of who they are, what they're working toward, and
+what they must avoid — and the coach uses that picture on every interaction.
+
+The differentiation is not "an LLM in a fitness app." It is **a beautiful,
+editable interface to the model's memory**, with coaching layered on top.
+
+## 2. Platform & stack
+
+- **Client:** Native iOS, **SwiftUI**. Built "right" as a real App Store
+  binary. Local persistence via **SwiftData**.
+- **Auth:** **Sign in with Apple** (best privacy story, lowest friction,
+  expected for a portfolio-grade app).
+- **Backend:** Serverless (recommended: **Supabase** — bundles Postgres, auth,
+  and edge functions). Holds the LLM API key, assembles prompts, enforces usage
+  caps. Alternatives: Cloudflare Workers, Vercel functions.
+- **LLM:** Accessed server-side via API. Default to a **managed key** (the app
+  never holds it). "Bring your own API key" is a later, optional power-user
+  feature.
+
+### Why a backend is non-negotiable
+
+The LLM API key must never ship inside the app. The backend is where the key
+lives, where the per-request context is assembled, and where daily usage caps
+are enforced. Even in a future "bring your own key" mode, the server still
+verifies users and centralizes prompt logic; the user's key would live in the
+iOS Keychain and be passed per request.
+
+## 3. System shape
+
+```
+┌─────────────────────────┐
+│   iOS app (SwiftUI)      │
+│  • Onboarding flow       │
+│  • Workout logging UI    │
+│  • Coaching / chat       │
+│  • Sign in with Apple    │
+│  • Local store (SwiftData)│
+└───────────┬─────────────┘
+            │  HTTPS (user session token, NOT an API key)
+            ▼
+┌─────────────────────────┐
+│   Backend (Supabase)     │
+│  • Verifies user (Apple) │
+│  • Holds LLM API key  🔑 │
+│  • Assembles context     │
+│  • Rate limit / usage cap│
+│  • Prompt caching        │
+│  • Authoritative memory  │
+└───────────┬─────────────┘
+            │  HTTPS + API key
+            ▼
+┌─────────────────────────┐
+│   LLM API (Anthropic/etc)│
+└─────────────────────────┘
+```
+
+## 4. The core architectural principle
+
+**Do not store memory as a chat transcript. Extract it into structured fields
+and inject them deterministically on every request.**
+
+A long conversation as "memory" is lossy (it forgets), unsafe (it may forget
+the injury that matters most), expensive (you resend the whole transcript every
+call), and illegible (the user can't see or edit a blob of chat). Structured,
+deterministically-injected memory fixes all four — and the same mechanism
+delivers cost control, safety, and the legibility thesis at once.
+
+## 5. Data model
+
+Five layers of memory, each of which is **also a screen the user can open and
+edit**.
+
+```
+IDENTITY ───────► who you are, how you train, your voice        (stable)
+CONSTRAINTS ────► injuries & limits — never forgotten, safety   (protected)
+GOALS ──────────► what you're driving toward                    (evolving)
+HISTORY ────────► what you actually did                         (append-only)
+EPISODIC ───────► what just happened / recent context          (expiring)
+```
+
+### `profile` — Identity (the voice)
+| field | example |
+|---|---|
+| `age` | 45 |
+| `experience_level` | advanced |
+| `training_persona` | "runs into the fire, goes hard, wants to lift more" |
+| `tone_preference` | direct, intense, no hand-holding |
+| `equipment_access` | full gym |
+| `schedule` | 4 days/week |
+
+Screen: **About Me.** This is what makes the coach talk to you like it knows you.
+
+### `constraints` — Safety (the protected layer)
+| field | example |
+|---|---|
+| `body_area` | left shoulder |
+| `description` | impingement, flares on heavy overhead |
+| `movements_to_avoid` | barbell OHP, behind-neck |
+| `severity` | monitoring / active / resolved |
+| `status` | active |
+
+Screen: **Injuries & Limits.** Injected on **every** request, no exceptions.
+This is a row in a table, not a hope that the model remembers — which is what
+guarantees the coach never programs around a forgotten injury.
+
+### `goals` — Direction (evolving)
+| field | example |
+|---|---|
+| `description` | add 20 lb to squat |
+| `metric` / `target_value` | squat 1RM / 315 |
+| `current_value` | 295 |
+| `target_date` | fall 2026 |
+| `priority` | primary |
+
+Screen: **Goals** — editable, so "my plan changed" updates a row and the next
+response changes accordingly.
+
+### `workout_sessions` + `sets` — History (proof of progress)
+```
+session:  date · perceived_effort · how_it_felt · notes
+  └─ set: exercise · weight · reps · rpe
+```
+Screen: workout logger + history view. Feeds the long-term arc — the model and
+the user can see that this week's squat beat last month's.
+
+### `coaching_interactions` — Episodic + audit trail
+| field | purpose |
+|---|---|
+| `user_message` / `assistant_message` | the exchange |
+| `context_snapshot_used` | exactly what memory was fed in |
+| `model_used`, `tokens` | cost tracking |
+
+`context_snapshot_used` powers a rare legibility feature: tap any past reply and
+see "here's what the model knew about me when it said this."
+
+### `usage_counters` — cost cap
+`user_id · date · interaction_count` — enforce N coaching calls/day server-side.
+Invisible to the user unless they hit the cap.
+
+## 6. Per-request context assembly
+
+The backend builds a compact, mostly-stable prompt from the tables above on
+every call:
+
+```
+[SYSTEM]
+You are a strength coach for this athlete. Honor their voice and ALWAYS
+respect their constraints.
+
+IDENTITY: 45yo, advanced, "runs into the fire," wants intensity and to lift
+  more. Tone: direct, no hand-holding.
+CONSTRAINTS (never violate): left shoulder impingement — avoid barbell OHP
+  and behind-neck pressing.
+GOALS: primary — squat 295→315 by fall.
+RECENT: last session (3 days ago) squat 5x5 @ 275, felt strong, RPE 8.
+
+[USER]
+"What should I do for legs today?"
+```
+
+A few hundred tokens, mostly stable between calls → **prompt-caches cheaply**,
+**enforces safety**, and **is fully legible** because every line traces to an
+editable row.
+
+### Two query types
+
+Every request to the LLM is one of two things. The distinction drives which model is used and what the UI does with the response.
+
+**1. Workout query** — "What do I train today?" / "How was my form?"
+The most common interaction. Streamed token-by-token so it feels live. Haiku handles these. The response is a structured session suggestion the UI renders as a workout card: a name, estimated duration, a coaching note, and a list of exercises. Each exercise carries a target — either an absolute weight (when history exists) or an RPE target (effort level 1–10, used for accessories or unfamiliar movements). When the user starts the session, each exercise becomes a logging row showing target alongside what they actually did.
+
+```json
+{
+  "type": "session_suggestion",
+  "label": "Lower — Squat Focus",
+  "estimated_duration_min": 60,
+  "coach_note": "You hit 275×5 strong last time. Push to 280 today.",
+  "exercises": [
+    {
+      "name": "Back Squat",
+      "sets": 5, "reps": "5",
+      "load": { "type": "absolute", "value": 280, "unit": "lb" },
+      "rpe_target": 8
+    },
+    {
+      "name": "Leg Press",
+      "sets": 3, "reps": "10-12",
+      "load": { "type": "rpe", "rpe_target": 7 }
+    }
+  ]
+}
+```
+
+**2. Planning query** — "Give me a program" / "Build me a 4-day split"
+Less frequent. Sonnet handles these — they require more reasoning. The response is a weekly split: named days, each with a label and training focus. The user can tap any day to get a full session suggestion for it.
+
+```json
+{
+  "type": "weekly_split",
+  "name": "Upper/Lower 4-Day",
+  "days": [
+    { "day": "Monday",   "label": "Lower A — Squat",  "focus": "squat strength" },
+    { "day": "Tuesday",  "label": "Upper A — Push",   "focus": "pressing"       },
+    { "day": "Thursday", "label": "Lower B — Hinge",  "focus": "deadlift"       },
+    { "day": "Friday",   "label": "Upper B — Pull",   "focus": "back/biceps"    }
+  ]
+}
+```
+
+**Safety check on all structured output:** the backend validates that no returned exercise appears in the user's `movements_to_avoid` list before sending to the client. If it does, the request is regenerated. This is a hard check — not a hope that the model remembered the constraint.
+
+## 7. Data placement
+
+This app requires a live connection — coaching is online-only by design. There is no offline mode; if the connection drops, the app shows a clear unavailable state.
+
+- **On-device (SwiftData):** in-progress workout logging, cached profile — fast UI, strong privacy.
+- **Server (Supabase):** authoritative profile / constraints / goals, LLM API key, context assembly, usage counters, interaction log.
+
+The **constraints layer is server-authoritative** so a safety rule can never be stale or out of sync.
+
+## 8. Cost & pricing
+
+The developer pays for inference; users pay a subscription. A realistic active user has 3–4 gym sessions/week with a few coaching messages each — roughly 15–20 Haiku interactions and 1–2 Sonnet plan generations per month.
+
+Per substantive interaction (≈3k input + 1k output tokens):
+
+| Query type | Model | ~per interaction | ~per active user / month |
+|---|---|---|---|
+| Workout (coaching) | Haiku | ~$0.006 | ~$0.12 |
+| Planning | Sonnet | ~$0.024 | ~$0.05 (2×/month) |
+
+**Total inference cost: ~$0.17/active user/month.**
+
+Apple Small Business Program takes ~15%, leaving ~$2.54/month from a $2.99 subscription. Net margin after inference: **~$2.37/user/month.**
+
+Mitigations: **prompt caching** (stable context re-use), **model routing** (Haiku for workout queries, Sonnet for planning), **daily usage cap** (protects against outlier heavy users; ~5 coaching interactions/day is a natural ceiling that still feels generous).
+
+**Pricing model:** freemium → **3-month free trial → $2.99/mo auto-renewing
+subscription.** Recurring (not lifetime), because the app has a recurring
+per-user cost — lifetime pricing loses money on the most engaged users. Digital
+subscriptions must use Apple In-App Purchase (StoreKit); **RevenueCat** is the
+standard library to manage it.
+
+## 9. App Store notes
+
+- **Guideline 4.2 (minimum functionality):** thin API wrappers get rejected.
+  The onboarding, editable memory, logging, and coaching experience are what
+  make this a real app — and they're also the differentiation.
+- **Sign in with Apple** for auth.
+- **Account deletion (required):** Apple Guideline 5.1.1 has mandated in-app account deletion since 2022. The app must provide a way to delete the account and all associated data (profile, constraints, goals, history, interaction log) from within the app itself.
+- **Privacy:** keep as much on-device as possible to simplify privacy labels and
+  reinforce the personal ethos.
+
+## 10. Build phasing
+
+1. **Skeleton:** SwiftUI shell + Sign in with Apple + backend that proxies one
+   prompt to the LLM and streams a reply. Proves the whole pipe.
+2. **Onboarding → context store:** the editable-memory feature (the core bet).
+3. **Workout logging + coaching loop** using that context.
+4. **Usage caps + polish + TestFlight** (real-device testing at the gym).
+5. **Paid tier via RevenueCat + App Store submission.**
+
+## 11. Environment note
+
+iOS builds require Xcode on macOS. Cloud/web Claude Code sessions can write
+logic, backend code, and docs, but compiling, running the simulator, device
+testing, and App Store submission happen in Xcode on a Mac. GitHub is the bridge
+between local Xcode work and cloud sessions.
