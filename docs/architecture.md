@@ -242,15 +242,20 @@ Per substantive interaction (≈3k input + 1k output tokens):
 
 **Total inference cost: ~$0.17/active user/month.**
 
-Apple Small Business Program takes ~15%, leaving ~$2.54/month from a $2.99 subscription. Net margin after inference: **~$2.37/user/month.**
+Apple Small Business Program takes ~15%. Even at the lowest price point (~$2.99/mo billed annually → ~$2.54 net), net margin after inference is **~$2.37/user/month**; the monthly plan nets more.
 
 Mitigations: **prompt caching** (stable context re-use), **model routing** (Haiku for workout queries, Sonnet for planning), **daily usage cap** (protects against outlier heavy users; ~5 coaching interactions/day is a natural ceiling that still feels generous).
 
-**Pricing model:** freemium → **3-month free trial → $2.99/mo auto-renewing
-subscription.** Recurring (not lifetime), because the app has a recurring
-per-user cost — lifetime pricing loses money on the most engaged users. Digital
-subscriptions must use Apple In-App Purchase (StoreKit); **RevenueCat** is the
-standard library to manage it.
+**Pricing model:** freemium → **free trial → recurring subscription**, with two tiers:
+
+| Plan | Price | Effective /mo |
+|---|---|---|
+| Monthly | **$3.99/mo** | $3.99 |
+| Annual | **$29.99/yr** | **$2.99** |
+
+The monthly price intentionally sits higher to **steer users toward the annual plan**. This is not just revenue smoothing — Health & Fitness apps see ~8–10% *monthly* churn on monthly plans, and the category survives by selling annual subscriptions (industry-wide ~60–68% of Health & Fitness subscriptions are annual, the highest of any category). The annual plan is the structural defense against churn; the cheaper effective rate is the incentive to choose it. Put the **free trial on the annual plan** (where the category's ~35–45% trial-to-paid conversion captures the higher-LTV commitment).
+
+Recurring (not lifetime), because the app has a recurring per-user cost — lifetime pricing loses money on the most engaged users. Digital subscriptions must use Apple In-App Purchase (StoreKit); **RevenueCat** is the standard library to manage it.
 
 ## 9. App Store notes
 
