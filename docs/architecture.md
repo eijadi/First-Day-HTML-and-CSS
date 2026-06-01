@@ -259,6 +259,7 @@ standard library to manage it.
   make this a real app — and they're also the differentiation.
 - **Sign in with Apple** for auth.
 - **Account deletion (required):** Apple Guideline 5.1.1 has mandated in-app account deletion since 2022. The app must provide a way to delete the account and all associated data (profile, constraints, goals, history, interaction log) from within the app itself.
+- **HealthKit (write-only):** when a session is completed, write an `HKWorkout` record so it appears in Apple Health and counts toward activity rings. Read/import from HealthKit is explicitly out of scope for v1 — HealthKit has no native sets×reps×weight type, and coaching context comes from the app's own data model, not Apple Health.
 - **Privacy:** keep as much on-device as possible to simplify privacy labels and
   reinforce the personal ethos.
 
