@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#e8a04b">
+<title>Lion Run</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #1d1410;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  /* Overlay screens */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #fff7ec;
+    padding: 24px;
+    z-index: 10;
+    background: rgba(20, 12, 8, 0.55);
+    backdrop-filter: blur(2px);
+  }
+  .screen.hidden { display: none; }
+  .title {
+    font-size: clamp(40px, 13vw, 92px);
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #ffcf7a;
+    text-shadow: 0 4px 0 #8a4b1a, 0 8px 24px rgba(0,0,0,.5);
+    line-height: 0.95;
+  }
+  .sub {
+    margin-top: 18px;
+    font-size: clamp(16px, 4.5vw, 22px);
+    color: #ffe9c9;
+    opacity: 0.95;
+    max-width: 420px;
+    line-height: 1.4;
+  }
+  .big {
+    font-size: clamp(54px, 18vw, 120px);
+    font-weight: 900;
+    color: #ff8a5c;
+    text-shadow: 0 4px 0 #7a2d12, 0 10px 28px rgba(0,0,0,.5);
+    line-height: 1;
+  }
+  .label {
+    font-size: clamp(14px, 4vw, 18px);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #ffd9a8;
+    margin-bottom: 6px;
+  }
+  .btn {
+    margin-top: 30px;
+    background: #ff8a3c;
+    color: #2a1505;
+    border: none;
+    border-radius: 999px;
+    padding: 18px 46px;
+    font-size: clamp(20px, 6vw, 26px);
+    font-weight: 800;
+    box-shadow: 0 6px 0 #b85c1c, 0 10px 24px rgba(0,0,0,.4);
+    cursor: pointer;
+    transition: transform .05s ease;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #b85c1c; }
+  .best { margin-top: 22px; font-size: clamp(15px, 4vw, 19px); color: #ffe9c9; opacity: .85; }
+  .hint { margin-top: 16px; font-size: clamp(13px, 3.6vw, 16px); color: #ffe9c9; opacity: .7; }
+  .paw { font-size: 1.1em; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+</div>
+
+<!-- Start screen -->
+<div id="startScreen" class="screen">
+  <div class="title">LION<br>RUN</div>
+  <div class="sub">The savanna never ends. Tap to leap thorn bushes and rocks. One hit and the run is over.</div>
+  <button class="btn" id="startBtn">START</button>
+  <div class="best" id="startBest"></div>
+  <div class="hint">Tap anywhere to jump</div>
+</div>
+
+<!-- Game over screen -->
+<div id="overScreen" class="screen hidden">
+  <div class="label">You ran</div>
+  <div class="big" id="finalScore">0</div>
+  <div class="best" id="overBest"></div>
+  <button class="btn" id="retryBtn">RUN AGAIN</button>
+  <div class="hint">Tap the button to try again</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const startScreen = document.getElementById("startScreen");
+  const overScreen  = document.getElementById("overScreen");
+  const startBtn    = document.getElementById("startBtn");
+  const retryBtn    = document.getElementById("retryBtn");
+  const finalScore  = document.getElementById("finalScore");
+  const startBest   = document.getElementById("startBest");
+  const overBest    = document.getElementById("overBest");
+
+  // Logical world is scaled to device pixels; we keep a fixed logical height
+  // and derive width from the screen so it feels right on any phone.
+  let W = 0, H = 0, DPR = 1;
+  const GROUND_RATIO = 0.80;   // ground line as fraction of height
+  let groundY = 0;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width  = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    groundY = H * GROUND_RATIO;
+    // Scale the lion to the screen so it reads at a distance.
+    lion.size = Math.max(46, Math.min(W, H) * 0.13);
+    lion.x = W * 0.18;
+    if (state !== "playing") lion.y = groundY - lion.size;
+  }
+
+  // ---- Game state ----
+  let state = "start"; // start | playing | over
+  let score = 0;
+  let best = 0;
+  try { best = parseInt(localStorage.getItem("lionRunBest") || "0", 10) || 0; } catch (e) {}
+
+  let speed = 0;
+  let baseSpeed = 0;
+  let distance = 0;
+  let spawnTimer = 0;
+  let nextSpawn = 0;
+  let obstacles = [];
+  let particles = [];
+  let lastTime = 0;
+  let shake = 0;
+
+  const GRAVITY = 2600;       // px / s^2
+  const JUMP_V  = -1080;      // initial jump velocity
+  const COYOTE  = 0.10;       // forgiving jump window after leaving ground
+
+  const lion = {
+    x: 0, y: 0, vy: 0, size: 70,
+    onGround: true,
+    runPhase: 0,
+    coyote: 0,
+    bufferedJump: 0,
+  };
+
+  function reset() {
+    score = 0;
+    distance = 0;
+    baseSpeed = Math.max(360, W * 0.62);
+    speed = baseSpeed;
+    obstacles = [];
+    particles = [];
+    spawnTimer = 0;
+    nextSpawn = 0.6;
+    shake = 0;
+    lion.y = groundY - lion.size;
+    lion.vy = 0;
+    lion.onGround = true;
+    lion.coyote = 0;
+    lion.bufferedJump = 0;
+    lion.runPhase = 0;
+  }
+
+  function startGame() {
+    reset();
+    state = "playing";
+    startScreen.classList.add("hidden");
+    overScreen.classList.add("hidden");
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  function gameOver() {
+    state = "over";
+    shake = 16;
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem("lionRunBest", String(best)); } catch (e) {}
+    }
+    finalScore.textContent = score;
+    overBest.textContent = "Best: " + best + " m";
+    // Burst of dust on death
+    for (let i = 0; i < 22; i++) {
+      particles.push({
+        x: lion.x + lion.size * 0.5,
+        y: lion.y + lion.size * 0.6,
+        vx: (Math.random() - 0.5) * 520,
+        vy: -Math.random() * 520 - 80,
+        life: 0.6 + Math.random() * 0.5,
+        max: 1.1,
+        r: 3 + Math.random() * 5,
+      });
+    }
+    setTimeout(() => {
+      overScreen.classList.remove("hidden");
+    }, 360);
+  }
+
+  // ---- Input ----
+  function jump() {
+    if (state !== "playing") return;
+    if (lion.onGround || lion.coyote > 0) {
+      lion.vy = JUMP_V;
+      lion.onGround = false;
+      lion.coyote = 0;
+      // kick up dust
+      for (let i = 0; i < 8; i++) {
+        particles.push({
+          x: lion.x + lion.size * 0.3,
+          y: groundY,
+          vx: -Math.random() * 240 - 40,
+          vy: -Math.random() * 160,
+          life: 0.4 + Math.random() * 0.3,
+          max: 0.7,
+          r: 2 + Math.random() * 3,
+        });
+      }
+    } else {
+      lion.bufferedJump = 0.12; // remember the tap briefly
+    }
+  }
+
+  function onPress(e) {
+    e.preventDefault();
+    if (state === "playing") jump();
+  }
+  // Pointer/touch anywhere on the canvas jumps.
+  canvas.addEventListener("pointerdown", onPress, { passive: false });
+  document.addEventListener("keydown", function (e) {
+    if (e.code === "Space" || e.code === "ArrowUp") {
+      e.preventDefault();
+      if (state === "playing") jump();
+      else if (state === "start") startGame();
+      else if (state === "over") startGame();
+    }
+  });
+
+  startBtn.addEventListener("click", function (e) { e.stopPropagation(); startGame(); });
+  retryBtn.addEventListener("click", function (e) { e.stopPropagation(); startGame(); });
+
+  // ---- Obstacles ----
+  function spawnObstacle() {
+    // Two flavors: a thorn bush (wide, short) and a rock (narrow, tall).
+    const isRock = Math.random() < 0.45;
+    const s = lion.size;
+    let w, h, type;
+    if (isRock) {
+      type = "rock";
+      w = s * (0.45 + Math.random() * 0.2);
+      h = s * (0.55 + Math.random() * 0.45);
+    } else {
+      type = "bush";
+      w = s * (0.7 + Math.random() * 0.5);
+      h = s * (0.4 + Math.random() * 0.25);
+    }
+    obstacles.push({ x: W + w, y: groundY - h, w: w, h: h, type: type });
+  }
+
+  // ---- Update ----
+  function update(dt) {
+    distance += speed * dt;
+    score = Math.floor(distance / 28);
+    // Difficulty ramps gently with distance.
+    speed = baseSpeed + Math.min(baseSpeed * 1.4, distance * 0.018);
+
+    // Lion physics
+    lion.vy += GRAVITY * dt;
+    lion.y += lion.vy * dt;
+    const floor = groundY - lion.size;
+    if (lion.y >= floor) {
+      lion.y = floor;
+      lion.vy = 0;
+      if (!lion.onGround && lion.bufferedJump > 0) {
+        // honor a tap made just before landing
+        lion.onGround = true;
+        jump();
+      }
+      lion.onGround = true;
+      lion.coyote = COYOTE;
+    } else {
+      lion.onGround = false;
+      lion.coyote -= dt;
+    }
+    lion.bufferedJump -= dt;
+    lion.runPhase += dt * (speed / 80);
+
+    // Spawning
+    spawnTimer += dt;
+    if (spawnTimer >= nextSpawn) {
+      spawnTimer = 0;
+      spawnObstacle();
+      // Gap scales with speed so it's always clearable; tightens over time.
+      const base = (W * 0.6) / speed;
+      const tighten = Math.max(0.55, 1 - distance * 0.00002);
+      nextSpawn = (base + Math.random() * base * 0.8) * tighten + 0.25;
+    }
+
+    // Move obstacles + collide
+    const pad = lion.size * 0.16; // forgiving hitbox
+    const lx = lion.x + pad, ly = lion.y + pad;
+    const lw = lion.size - pad * 2, lh = lion.size - pad * 2;
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      o.x -= speed * dt;
+      if (o.x + o.w < -10) { obstacles.splice(i, 1); continue; }
+      const ox = o.x + o.w * 0.12, ow = o.w * 0.76;
+      if (lx < ox + ow && lx + lw > ox && ly < o.y + o.h && ly + lh > o.y) {
+        gameOver();
+        return;
+      }
+    }
+
+    // Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.vy += GRAVITY * 0.5 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    if (shake > 0) shake = Math.max(0, shake - dt * 60);
+  }
+
+  // ---- Drawing ----
+  let cloudOffset = 0;
+  function drawBackground(dt) {
+    // Sky gradient
+    const g = ctx.createLinearGradient(0, 0, 0, groundY);
+    g.addColorStop(0, "#f6b25e");
+    g.addColorStop(0.5, "#f3cf86");
+    g.addColorStop(1, "#f6e3b0");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, groundY);
+
+    // Sun
+    ctx.fillStyle = "rgba(255, 246, 214, 0.85)";
+    ctx.beginPath();
+    ctx.arc(W * 0.78, H * 0.2, Math.min(W, H) * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Far hills (parallax)
+    cloudOffset = (cloudOffset + (state === "playing" ? speed : 0) * dt * 0.12) % W;
+    ctx.fillStyle = "#e7b56b";
+    for (let k = -1; k <= 1; k++) {
+      const baseX = -cloudOffset + k * W;
+      ctx.beginPath();
+      ctx.moveTo(baseX, groundY);
+      ctx.quadraticCurveTo(baseX + W * 0.25, groundY - H * 0.13, baseX + W * 0.5, groundY);
+      ctx.quadraticCurveTo(baseX + W * 0.75, groundY - H * 0.16, baseX + W, groundY);
+      ctx.lineTo(baseX + W, groundY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Ground
+    const gg = ctx.createLinearGradient(0, groundY, 0, H);
+    gg.addColorStop(0, "#c98a3f");
+    gg.addColorStop(1, "#9c6526");
+    ctx.fillStyle = gg;
+    ctx.fillRect(0, groundY, W, H - groundY);
+    // Ground top line
+    ctx.fillStyle = "#7d4f1d";
+    ctx.fillRect(0, groundY, W, Math.max(2, H * 0.006));
+  }
+
+  function drawLion() {
+    const s = lion.size;
+    const x = lion.x;
+    const y = lion.y;
+    // Run cycle: legs swing; in air, tuck.
+    const swing = lion.onGround ? Math.sin(lion.runPhase) : 1.0;
+    const swing2 = lion.onGround ? Math.sin(lion.runPhase + Math.PI) : 0.4;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Shadow
+    const airT = Math.max(0, (groundY - (y + s)) / (s * 1.5));
+    ctx.fillStyle = "rgba(80,45,15," + (0.28 * (1 - Math.min(1, airT))) + ")";
+    ctx.beginPath();
+    ctx.ellipse(s * 0.5, groundY - y, s * 0.42, s * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const body = "#d98b34";
+    const bodyDark = "#bf7526";
+    const mane = "#9a4e16";
+    const maneDark = "#7d3d11";
+
+    // Tail
+    ctx.strokeStyle = body;
+    ctx.lineWidth = s * 0.08;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(s * 0.12, s * 0.5);
+    ctx.quadraticCurveTo(-s * 0.12, s * 0.42 + swing * s * 0.05, -s * 0.05, s * 0.66);
+    ctx.stroke();
+    ctx.fillStyle = maneDark;
+    ctx.beginPath();
+    ctx.arc(-s * 0.05, s * 0.68, s * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Back legs
+    ctx.strokeStyle = bodyDark;
+    ctx.lineWidth = s * 0.12;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.32, s * 0.6);
+    ctx.lineTo(s * 0.32 + swing2 * s * 0.14, s * 0.95);
+    ctx.stroke();
+    // Front legs
+    ctx.beginPath();
+    ctx.moveTo(s * 0.62, s * 0.6);
+    ctx.lineTo(s * 0.62 + swing * s * 0.14, s * 0.95);
+    ctx.stroke();
+
+    // Body
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.ellipse(s * 0.46, s * 0.55, s * 0.34, s * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mane
+    ctx.fillStyle = mane;
+    ctx.beginPath();
+    ctx.arc(s * 0.74, s * 0.42, s * 0.27, 0, Math.PI * 2);
+    ctx.fill();
+    // Mane spikes
+    ctx.fillStyle = maneDark;
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(s * 0.74 + Math.cos(a) * s * 0.27, s * 0.42 + Math.sin(a) * s * 0.27, s * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Head
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(s * 0.8, s * 0.42, s * 0.19, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ears
+    ctx.fillStyle = bodyDark;
+    ctx.beginPath();
+    ctx.arc(s * 0.7, s * 0.26, s * 0.05, 0, Math.PI * 2);
+    ctx.arc(s * 0.88, s * 0.26, s * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Muzzle
+    ctx.fillStyle = "#f0d9a8";
+    ctx.beginPath();
+    ctx.ellipse(s * 0.92, s * 0.48, s * 0.09, s * 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nose
+    ctx.fillStyle = "#5a3210";
+    ctx.beginPath();
+    ctx.arc(s * 0.99, s * 0.46, s * 0.022, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = "#3a2008";
+    ctx.beginPath();
+    ctx.arc(s * 0.86, s * 0.39, s * 0.025, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawObstacle(o) {
+    const x = o.x, y = o.y, w = o.w, h = o.h;
+    if (o.type === "rock") {
+      ctx.fillStyle = "#8a8079";
+      ctx.beginPath();
+      ctx.moveTo(x, y + h);
+      ctx.lineTo(x + w * 0.18, y + h * 0.25);
+      ctx.lineTo(x + w * 0.55, y);
+      ctx.lineTo(x + w * 0.85, y + h * 0.35);
+      ctx.lineTo(x + w, y + h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#6f655e";
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.55, y);
+      ctx.lineTo(x + w * 0.85, y + h * 0.35);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + w * 0.6, y + h);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Thorn bush
+      ctx.fillStyle = "#4f7a2e";
+      ctx.beginPath();
+      ctx.ellipse(x + w * 0.5, y + h, w * 0.55, h * 0.95, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = "#3d6322";
+      const spikes = Math.max(3, Math.floor(w / (lion.size * 0.18)));
+      for (let i = 0; i <= spikes; i++) {
+        const sx = x + (w * i) / spikes;
+        ctx.beginPath();
+        ctx.moveTo(sx - w * 0.06, y + h);
+        ctx.lineTo(sx, y - h * 0.15);
+        ctx.lineTo(sx + w * 0.06, y + h);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = "#c79a5e";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHUD() {
+    ctx.fillStyle = "#5a3210";
+    ctx.font = "900 " + Math.round(Math.min(W, H) * 0.075) + "px -apple-system, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.fillText(score + " m", W - 18, 16);
+    if (best > 0) {
+      ctx.fillStyle = "rgba(90,50,16,0.55)";
+      ctx.font = "700 " + Math.round(Math.min(W, H) * 0.035) + "px -apple-system, sans-serif";
+      ctx.fillText("best " + best, W - 18, 16 + Math.min(W, H) * 0.085);
+    }
+  }
+
+  // ---- Main loop ----
+  function loop(now) {
+    let dt = (now - lastTime) / 1000;
+    lastTime = now;
+    if (dt > 0.05) dt = 0.05; // clamp big frame gaps
+
+    if (state === "playing") update(dt);
+
+    ctx.save();
+    if (shake > 0) {
+      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    }
+    drawBackground(dt);
+    for (const o of obstacles) drawObstacle(o);
+    drawParticles();
+    drawLion();
+    drawHUD();
+    ctx.restore();
+
+    if (state === "playing" || shake > 0) requestAnimationFrame(loop);
+  }
+
+  // ---- Boot ----
+  function showBest() {
+    startBest.textContent = best > 0 ? ("Best run: " + best + " m") : "";
+  }
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+  resize();
+  showBest();
+  // Draw the idle scene behind the start screen.
+  drawBackground(0);
+  drawLion();
+})();
+</script>
+</body>
+</html>
