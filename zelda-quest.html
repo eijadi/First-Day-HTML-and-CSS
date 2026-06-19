@@ -104,7 +104,7 @@
   <div class="sub">You have a <b>wooden stick</b> and the <b>Hylian Shield</b>.
   Beat the bad guy to win the <b>Master Sword</b>, then defeat <b>Ganondorf</b>!</div>
   <button class="btn" id="startBtn">START</button>
-  <div class="hint">Tap the ground to walk · 🗡️ button to swing · ⏸ to pause</div>
+  <div class="hint">Drag your hero to move · Tap a bad guy to aim · 🗡️ to swing · ⏸ to pause</div>
 </div>
 
 <!-- Pause screen -->
@@ -192,6 +192,7 @@
       cooldown: 0,
       invuln: 0,
       walkPhase: 0, moving: false,
+      lockOn: null,                     // the enemy the sword is aimed at
     };
   }
 
@@ -208,7 +209,7 @@
       type: "mob", x: W * 0.5, y: H * 0.22, r: U * 0.46,
       hp: 4, maxHp: 4, speed: U * 1.7, touch: 0, hurt: 0, wob: Math.random()*6,
     });
-    setBanner("Beat the bad guy to win the Master Sword!", 2.6);
+    setBanner("Drag to move • Tap the bad guy to aim • 🗡️ to swing", 3.4);
   }
 
   function spawnGanon() {
@@ -289,18 +290,54 @@
   }
 
   // ---- Input ----
-  function fieldTap(px, py) {
-    if (state !== "playing") return;
+  // Move: press the hero (or ground) and DRAG. Aim: tap a bad guy to lock the
+  // sword onto him. The 🗡️ button always swings in the aimed direction.
+  let dragging = false;
+  function worldPoint(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  function enemyAt(x, y) {
+    // generous hitbox so little fingers can tap a bad guy easily
+    let best = null, bestD = Infinity;
+    for (const en of enemies) {
+      const d = Math.hypot(en.x - x, en.y - y);
+      if (d < en.r * 1.45 && d < bestD) { best = en; bestD = d; }
+    }
+    return best;
+  }
+  function setMoveTarget(px, py) {
     const a = ARENA();
     hero.tx = Math.max(a.x + hero.r, Math.min(a.x + a.w - hero.r, px));
     hero.ty = Math.max(a.y + hero.r, Math.min(a.y + a.h - hero.r, py));
   }
-  canvas.addEventListener("pointerdown", function (e) {
+  function onDown(e) {
     e.preventDefault();
     if (!actx) beep(1, 0.01, "sine", 0.0001); // unlock audio on first touch
-    const rect = canvas.getBoundingClientRect();
-    fieldTap(e.clientX - rect.left, e.clientY - rect.top);
-  }, { passive: false });
+    if (state !== "playing") return;
+    const p = worldPoint(e);
+    const en = enemyAt(p.x, p.y);
+    if (en) {
+      // Tap a bad guy -> aim the sword at him (lock-on)
+      hero.lockOn = en;
+      hero.dir = Math.atan2(en.y - hero.y, en.x - hero.x);
+      beep(440, 0.05, "sine", 0.04);
+      return;
+    }
+    dragging = true;
+    setMoveTarget(p.x, p.y);
+  }
+  function onMove(e) {
+    if (!dragging || state !== "playing") return;
+    e.preventDefault();
+    const p = worldPoint(e);
+    setMoveTarget(p.x, p.y);
+  }
+  function onUp() { dragging = false; }
+  canvas.addEventListener("pointerdown", onDown, { passive: false });
+  canvas.addEventListener("pointermove", onMove, { passive: false });
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
 
   function swing() {
     if (state !== "playing" || hero.cooldown > 0) return;
@@ -354,11 +391,22 @@
     if (hero.moving) {
       const step = Math.min(dist, hero.speed * dt);
       hero.x += (dx / dist) * step; hero.y += (dy / dist) * step;
-      hero.dir = Math.atan2(dy, dx);
       hero.walkPhase += dt * 12;
     }
     hero.x = Math.max(a.x + hero.r, Math.min(a.x + a.w - hero.r, hero.x));
     hero.y = Math.max(a.y + hero.r, Math.min(a.y + a.h - hero.r, hero.y));
+
+    // Sword aim: the tapped (locked) bad guy, or the nearest one by default.
+    // Aiming is separate from walking, so the hero can strafe while pointing.
+    let faceEn = (hero.lockOn && enemies.indexOf(hero.lockOn) !== -1) ? hero.lockOn : null;
+    if (!faceEn) {
+      let bestD = Infinity;
+      for (const en of enemies) {
+        const d = Math.hypot(en.x - hero.x, en.y - hero.y);
+        if (d < bestD) { bestD = d; faceEn = en; }
+      }
+    }
+    if (faceEn) hero.dir = Math.atan2(faceEn.y - hero.y, faceEn.x - hero.x);
 
     if (hero.attack > 0) hero.attack -= dt;
     if (hero.cooldown > 0) hero.cooldown -= dt;
@@ -665,6 +713,21 @@
     }
     ctx.globalAlpha = 1;
     ctx.restore();
+
+    // aim marker on the bad guy the sword is locked onto
+    if (en === hero.lockOn) {
+      const t = performance.now() / 1000;
+      ctx.strokeStyle = "#ffe27a"; ctx.lineWidth = U * 0.07;
+      ctx.beginPath(); ctx.arc(en.x, en.y, en.r * 1.25 + Math.sin(t*6)*U*0.05, 0, Math.PI*2); ctx.stroke();
+      for (let k = 0; k < 4; k++) {
+        const a = t*1.5 + k * Math.PI/2;
+        const r1 = en.r*1.05, r2 = en.r*1.45;
+        ctx.beginPath();
+        ctx.moveTo(en.x + Math.cos(a)*r1, en.y + Math.sin(a)*r1);
+        ctx.lineTo(en.x + Math.cos(a)*r2, en.y + Math.sin(a)*r2);
+        ctx.stroke();
+      }
+    }
 
     // health bar above enemy
     drawEnemyHp(en);
