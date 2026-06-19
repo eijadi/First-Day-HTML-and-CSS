@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a2a1f">
+<title>Sword Quest</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #0d140f;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* On-screen buttons */
+  .ctrl {
+    position: fixed;
+    z-index: 5;
+    border: none;
+    color: #fff;
+    font-weight: 900;
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform .05s ease, filter .1s ease;
+  }
+  .ctrl:active { transform: scale(0.92); }
+  /* Sword attack button - bottom right */
+  #swordBtn {
+    right: max(18px, env(safe-area-inset-right));
+    bottom: max(26px, env(safe-area-inset-bottom));
+    width: 96px; height: 96px;
+    font-size: 44px;
+    background: radial-gradient(circle at 35% 30%, #6fd0ff, #2a7fd6);
+    box-shadow: 0 6px 0 #1a5a9c, 0 10px 22px rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #swordBtn:active { box-shadow: 0 2px 0 #1a5a9c; }
+  /* Pause / stop button - top left, BLACK */
+  #pauseBtn {
+    left: max(16px, env(safe-area-inset-left));
+    top: max(16px, env(safe-area-inset-top));
+    width: 56px; height: 56px;
+    font-size: 24px;
+    background: #15171a;
+    box-shadow: 0 4px 0 #000, 0 6px 14px rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hidden { display: none !important; }
+
+  /* Overlay screens */
+  .screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; color: #f3ffe9; padding: 24px; z-index: 10;
+    background: rgba(8, 16, 10, 0.78);
+    backdrop-filter: blur(3px);
+  }
+  .title {
+    font-size: clamp(38px, 12vw, 86px);
+    font-weight: 900; letter-spacing: 1px; line-height: 0.95;
+    color: #ffe27a;
+    text-shadow: 0 4px 0 #6b5310, 0 8px 24px rgba(0,0,0,.5);
+  }
+  .crest { font-size: clamp(48px, 16vw, 96px); margin-bottom: 6px; }
+  .sub {
+    margin-top: 18px; font-size: clamp(16px, 4.4vw, 22px);
+    color: #e8ffd6; opacity: .95; max-width: 440px; line-height: 1.45;
+  }
+  .sub b { color: #9fe3ff; }
+  .btn {
+    margin-top: 30px;
+    background: #5bd06a; color: #0c2410; border: none; border-radius: 999px;
+    padding: 18px 48px; font-size: clamp(20px, 6vw, 26px); font-weight: 800;
+    box-shadow: 0 6px 0 #2f8a3c, 0 10px 24px rgba(0,0,0,.4); cursor: pointer;
+    transition: transform .05s ease;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2f8a3c; }
+  .hint { margin-top: 18px; font-size: clamp(13px, 3.6vw, 16px); color: #e8ffd6; opacity: .65; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game"></canvas></div>
+
+<!-- Controls (hidden until playing) -->
+<button id="pauseBtn" class="ctrl hidden" aria-label="Stop">⏸</button>
+<button id="swordBtn" class="ctrl hidden" aria-label="Swing sword">🗡️</button>
+
+<!-- Start screen -->
+<div id="startScreen" class="screen">
+  <div class="crest">🛡️⚔️</div>
+  <div class="title">SWORD<br>QUEST</div>
+  <div class="sub">You have a <b>wooden stick</b> and the <b>Hylian Shield</b>.
+  Beat the bad guy to win the <b>Master Sword</b>, then defeat <b>Ganondorf</b>!</div>
+  <button class="btn" id="startBtn">START</button>
+  <div class="hint">Tap the ground to walk · 🗡️ button to swing · ⏸ to pause</div>
+</div>
+
+<!-- Pause screen -->
+<div id="pauseScreen" class="screen hidden">
+  <div class="crest">⏸</div>
+  <div class="title">PAUSED</div>
+  <div class="sub">Take a break! Your quest is waiting for you.</div>
+  <button class="btn" id="resumeBtn">KEEP PLAYING</button>
+</div>
+
+<!-- Game over screen -->
+<div id="overScreen" class="screen hidden">
+  <div class="crest">💀</div>
+  <div class="title" style="color:#ff8a6a;text-shadow:0 4px 0 #7a2412;">OH NO!</div>
+  <div class="sub" id="overMsg">You ran out of hearts.</div>
+  <button class="btn" id="retryBtn">TRY AGAIN</button>
+</div>
+
+<!-- Win screen -->
+<div id="winScreen" class="screen hidden">
+  <div class="crest">👑⚔️</div>
+  <div class="title" style="color:#ffe27a;">YOU WON!</div>
+  <div class="sub">You beat Ganondorf and saved the day with the Master Sword! You are a true hero. 🎉</div>
+  <button class="btn" id="winBtn">PLAY AGAIN</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const startScreen  = document.getElementById("startScreen");
+  const pauseScreen  = document.getElementById("pauseScreen");
+  const overScreen   = document.getElementById("overScreen");
+  const winScreen    = document.getElementById("winScreen");
+  const overMsg      = document.getElementById("overMsg");
+  const swordBtn     = document.getElementById("swordBtn");
+  const pauseBtn     = document.getElementById("pauseBtn");
+
+  let W = 0, H = 0, DPR = 1, U = 40; // U = unit scale (based on screen)
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR); canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px"; canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    U = Math.max(34, Math.min(W, H) * 0.10); // hero is about 1 unit
+    if (state !== "playing") drawIdle();
+  }
+
+  // ---- Tiny sound effects (WebAudio) ----
+  let actx = null;
+  function beep(freq, dur, type, vol) {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type || "square"; o.frequency.value = freq;
+      g.gain.value = vol == null ? 0.06 : vol;
+      o.connect(g); g.connect(actx.destination);
+      const t = actx.currentTime;
+      o.start(t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.12));
+      o.stop(t + (dur || 0.12) + 0.02);
+    } catch (e) {}
+  }
+
+  // ---- Game state ----
+  let state = "start"; // start | playing | paused | over | won
+  let hero, enemies, pickups, particles, fireballs, banner, bannerT;
+  let stage = 0;       // 0 = the mob, 1 = ganondorf
+  let lastTime = 0, shake = 0;
+  const ARENA = () => ({ x: U*0.7, y: U*1.7, w: W - U*1.4, h: H - U*2.6 });
+
+  function makeHero() {
+    return {
+      x: W * 0.5, y: H * 0.6, r: U * 0.42,
+      tx: W * 0.5, ty: H * 0.6,         // walk target
+      dir: -Math.PI / 2,                // facing angle
+      speed: U * 3.4,
+      hearts: 6, maxHearts: 6,
+      weapon: "stick",                  // stick | master
+      attack: 0,                        // attack animation timer
+      cooldown: 0,
+      invuln: 0,
+      walkPhase: 0, moving: false,
+    };
+  }
+
+  function reset() {
+    hero = makeHero();
+    enemies = []; pickups = []; particles = []; fireballs = [];
+    banner = ""; bannerT = 0; stage = 0; shake = 0;
+    spawnMob();
+  }
+
+  // ---- Spawns ----
+  function spawnMob() {
+    enemies.push({
+      type: "mob", x: W * 0.5, y: H * 0.22, r: U * 0.46,
+      hp: 4, maxHp: 4, speed: U * 1.7, touch: 0, hurt: 0, wob: Math.random()*6,
+    });
+    setBanner("Beat the bad guy to win the Master Sword!", 2.6);
+  }
+
+  function spawnGanon() {
+    stage = 1;
+    enemies.push({
+      type: "ganon-big", x: W * 0.5, y: H * 0.2, r: U * 0.72,
+      hp: 10, maxHp: 10, speed: U * 1.5, touch: 0, hurt: 0, wob: 0, phase: 1,
+    });
+    setBanner("⚠️ GANONDORF appears! Beat all 3 forms!", 2.8);
+    beep(70, 0.5, "sawtooth", 0.09);
+  }
+
+  function nextGanonPhase(prev) {
+    if (prev === "ganon-big") {
+      enemies.push({
+        type: "ganon-tiny", x: hero.x + (Math.random()<.5?-1:1)*U*3, y: H*0.25,
+        r: U * 0.34, hp: 8, maxHp: 8, speed: U * 4.6, touch: 0, hurt: 0, wob: 0,
+        phase: 2, dash: 0,
+      });
+      setBanner("He shrank into a tiny zippy Ganondorf! 🟢", 2.4);
+      beep(900, 0.18, "square", 0.07);
+    } else if (prev === "ganon-tiny") {
+      enemies.push({
+        type: "ganon-dragon", x: W * 0.5, y: H * 0.2,
+        r: U * 0.85, hp: 14, maxHp: 14, speed: U * 1.9, touch: 0, hurt: 0,
+        wob: 0, phase: 3, breath: 1.6,
+      });
+      setBanner("🐉 He became a RED DRAGON! Dodge the fire!", 2.8);
+      beep(60, 0.6, "sawtooth", 0.1);
+    } else {
+      win();
+    }
+  }
+
+  function setBanner(text, secs) { banner = text; bannerT = secs; }
+
+  // ---- Flow ----
+  function startGame() {
+    reset();
+    state = "playing";
+    [startScreen, pauseScreen, overScreen, winScreen].forEach(s => s.classList.add("hidden"));
+    swordBtn.classList.remove("hidden");
+    pauseBtn.classList.remove("hidden");
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+  function pauseGame() {
+    if (state !== "playing") return;
+    state = "paused";
+    pauseScreen.classList.remove("hidden");
+    swordBtn.classList.add("hidden");
+  }
+  function resumeGame() {
+    if (state !== "paused") return;
+    state = "playing";
+    pauseScreen.classList.add("hidden");
+    swordBtn.classList.remove("hidden");
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+  function gameOver() {
+    state = "over"; shake = 16;
+    swordBtn.classList.add("hidden"); pauseBtn.classList.add("hidden");
+    overMsg.textContent = stage === 0
+      ? "The bad guy got you! Try again, hero."
+      : "Ganondorf got you! So close — try again!";
+    setTimeout(() => overScreen.classList.remove("hidden"), 500);
+    beep(140, 0.5, "sawtooth", 0.09);
+  }
+  function win() {
+    state = "won"; shake = 10;
+    swordBtn.classList.add("hidden"); pauseBtn.classList.add("hidden");
+    burst(hero.x, hero.y, "#ffe27a", 40);
+    setTimeout(() => winScreen.classList.remove("hidden"), 700);
+    beep(660, 0.16, "square", 0.08);
+    setTimeout(()=>beep(880,0.2,"square",0.08), 160);
+    setTimeout(()=>beep(1180,0.3,"square",0.08), 360);
+  }
+
+  // ---- Input ----
+  function fieldTap(px, py) {
+    if (state !== "playing") return;
+    const a = ARENA();
+    hero.tx = Math.max(a.x + hero.r, Math.min(a.x + a.w - hero.r, px));
+    hero.ty = Math.max(a.y + hero.r, Math.min(a.y + a.h - hero.r, py));
+  }
+  canvas.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    if (!actx) beep(1, 0.01, "sine", 0.0001); // unlock audio on first touch
+    const rect = canvas.getBoundingClientRect();
+    fieldTap(e.clientX - rect.left, e.clientY - rect.top);
+  }, { passive: false });
+
+  function swing() {
+    if (state !== "playing" || hero.cooldown > 0) return;
+    hero.attack = 0.26; hero.cooldown = 0.34;
+    beep(hero.weapon === "master" ? 520 : 300, 0.1, "square", 0.05);
+    // Hit check: arc in front of the hero
+    const reach = hero.r + (hero.weapon === "master" ? U * 1.15 : U * 0.8);
+    const dmg = hero.weapon === "master" ? 2 : 1;
+    const hx = hero.x + Math.cos(hero.dir) * reach * 0.6;
+    const hy = hero.y + Math.sin(hero.dir) * reach * 0.6;
+    let hitSomething = false;
+    for (const en of enemies) {
+      const d = Math.hypot(en.x - hx, en.y - hy);
+      if (d < reach * 0.7 + en.r) {
+        en.hp -= dmg; en.hurt = 0.25; hitSomething = true;
+        burst(en.x, en.y, "#fff2a0", 8);
+        // knockback
+        const ang = Math.atan2(en.y - hero.y, en.x - hero.x);
+        en.x += Math.cos(ang) * U * 0.5; en.y += Math.sin(ang) * U * 0.5;
+      }
+    }
+    if (hitSomething) { shake = Math.max(shake, 6); beep(180, 0.06, "square", 0.05); }
+  }
+  swordBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); swing(); }, { passive: false });
+  pauseBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); pauseGame(); }, { passive: false });
+
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("retryBtn").addEventListener("click", startGame);
+  document.getElementById("winBtn").addEventListener("click", startGame);
+  document.getElementById("resumeBtn").addEventListener("click", resumeGame);
+  document.addEventListener("keydown", function (e) {
+    if (e.code === "Space") { e.preventDefault(); state === "playing" ? swing() : (state==="start"||state==="over"||state==="won") && startGame(); }
+    if (e.code === "Escape" || e.code === "KeyP") { state === "playing" ? pauseGame() : resumeGame(); }
+  });
+
+  // ---- Particles ----
+  function burst(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = (0.4 + Math.random()) * U * 4;
+      particles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: .4+Math.random()*.4, max:.8, r: 2+Math.random()*4, color });
+    }
+  }
+
+  // ---- Update ----
+  function update(dt) {
+    const a = ARENA();
+    // hero movement toward target
+    const dx = hero.tx - hero.x, dy = hero.ty - hero.y;
+    const dist = Math.hypot(dx, dy);
+    hero.moving = dist > U * 0.12;
+    if (hero.moving) {
+      const step = Math.min(dist, hero.speed * dt);
+      hero.x += (dx / dist) * step; hero.y += (dy / dist) * step;
+      hero.dir = Math.atan2(dy, dx);
+      hero.walkPhase += dt * 12;
+    }
+    hero.x = Math.max(a.x + hero.r, Math.min(a.x + a.w - hero.r, hero.x));
+    hero.y = Math.max(a.y + hero.r, Math.min(a.y + a.h - hero.r, hero.y));
+
+    if (hero.attack > 0) hero.attack -= dt;
+    if (hero.cooldown > 0) hero.cooldown -= dt;
+    if (hero.invuln > 0) hero.invuln -= dt;
+
+    // enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const en = enemies[i];
+      if (en.hurt > 0) en.hurt -= dt;
+      en.wob += dt * 6;
+      const ang = Math.atan2(hero.y - en.y, hero.x - en.x);
+
+      if (en.type === "ganon-tiny") {
+        en.dash -= dt;
+        if (en.dash <= 0) { en.dash = 0.7 + Math.random()*0.5; }
+        const sp = en.speed * (en.dash > 0.4 ? 1.3 : 0.5);
+        en.x += Math.cos(ang) * sp * dt + Math.cos(en.wob)*U*0.4*dt;
+        en.y += Math.sin(ang) * sp * dt + Math.sin(en.wob*1.3)*U*0.4*dt;
+      } else if (en.type === "ganon-dragon") {
+        // hover & circle, breathe fire
+        en.x += Math.cos(ang) * en.speed * dt * 0.7;
+        en.y += Math.sin(ang) * en.speed * dt * 0.7 + Math.sin(en.wob)*U*0.5*dt;
+        en.breath -= dt;
+        if (en.breath <= 0) {
+          en.breath = 1.5;
+          for (let k = -1; k <= 1; k++) {
+            const fa = ang + k * 0.32;
+            fireballs.push({ x: en.x, y: en.y, vx: Math.cos(fa)*U*3.2, vy: Math.sin(fa)*U*3.2, r: U*0.22, life: 3 });
+          }
+          beep(120, 0.25, "sawtooth", 0.06);
+        }
+      } else {
+        en.x += Math.cos(ang) * en.speed * dt;
+        en.y += Math.sin(ang) * en.speed * dt;
+      }
+      // keep in arena
+      en.x = Math.max(a.x + en.r, Math.min(a.x + a.w - en.r, en.x));
+      en.y = Math.max(a.y + en.r, Math.min(a.y + a.h - en.r, en.y));
+
+      // touch damage to hero
+      if (en.touch > 0) en.touch -= dt;
+      const hd = Math.hypot(en.x - hero.x, en.y - hero.y);
+      if (hd < en.r + hero.r * 0.75 && hero.invuln <= 0) {
+        hero.hearts -= 1; hero.invuln = 1.1; shake = 12;
+        burst(hero.x, hero.y, "#ff7a6a", 10);
+        beep(160, 0.18, "sawtooth", 0.07);
+        // small knockback to hero
+        const ka = Math.atan2(hero.y - en.y, hero.x - en.x);
+        hero.x += Math.cos(ka) * U; hero.y += Math.sin(ka) * U;
+        hero.tx = hero.x; hero.ty = hero.y;
+        if (hero.hearts <= 0) { gameOver(); return; }
+      }
+
+      // death
+      if (en.hp <= 0) {
+        burst(en.x, en.y, en.type === "mob" ? "#cfe8ff" : "#ffd27a", 24);
+        shake = 14; beep(90, 0.3, "sawtooth", 0.08);
+        const deadType = en.type;
+        enemies.splice(i, 1);
+        if (deadType === "mob") {
+          pickups.push({ x: en.x, y: en.y, type: "master", bob: 0 });
+          setBanner("The Master Sword dropped! Walk over it!", 2.6);
+        } else {
+          nextGanonPhase(deadType);
+        }
+      }
+    }
+
+    // fireballs
+    for (let i = fireballs.length - 1; i >= 0; i--) {
+      const f = fireballs[i];
+      f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt;
+      if (Math.random() < 0.6) particles.push({ x: f.x, y: f.y, vx:0, vy:0, life:.3, max:.3, r: f.r*0.7, color:"#ffb24a" });
+      const fd = Math.hypot(f.x - hero.x, f.y - hero.y);
+      if (fd < f.r + hero.r * 0.7 && hero.invuln <= 0) {
+        hero.hearts -= 1; hero.invuln = 1.1; shake = 12;
+        burst(hero.x, hero.y, "#ff9a4a", 10); beep(150, 0.2, "sawtooth", 0.07);
+        fireballs.splice(i, 1);
+        if (hero.hearts <= 0) { gameOver(); return; }
+        continue;
+      }
+      if (f.life <= 0 || f.x < -50 || f.x > W+50 || f.y < -50 || f.y > H+50) fireballs.splice(i, 1);
+    }
+
+    // pickups
+    for (let i = pickups.length - 1; i >= 0; i--) {
+      const p = pickups[i]; p.bob += dt * 4;
+      if (Math.hypot(p.x - hero.x, p.y - hero.y) < hero.r + U * 0.4) {
+        if (p.type === "master") {
+          hero.weapon = "master";
+          if (hero.hearts < hero.maxHearts) hero.hearts++;
+          setBanner("⚔️ You got the MASTER SWORD! Now beat Ganondorf!", 3);
+          burst(p.x, p.y, "#9fe3ff", 30); shake = 8;
+          beep(660, 0.15, "square", 0.07); setTimeout(()=>beep(990,0.25,"square",0.07),140);
+          setTimeout(() => { if (state === "playing") spawnGanon(); }, 1500);
+        }
+        pickups.splice(i, 1);
+      }
+    }
+
+    // particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vx *= 0.92; p.vy *= 0.92;
+      p.life -= dt; if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    if (bannerT > 0) bannerT -= dt;
+    if (shake > 0) shake = Math.max(0, shake - dt * 50);
+  }
+
+  // ================= DRAWING =================
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#274a30"); g.addColorStop(1, "#16301d");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // arena floor
+    const a = ARENA();
+    ctx.fillStyle = "#3a6b45";
+    roundRect(a.x, a.y, a.w, a.h, U*0.4); ctx.fill();
+    // checker tiles
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    const ts = U * 1.1;
+    for (let yy = 0; yy < a.h; yy += ts) for (let xx = 0; xx < a.w; xx += ts)
+      if (((xx/ts|0)+(yy/ts|0)) % 2 === 0) ctx.fillRect(a.x+xx, a.y+yy, Math.min(ts,a.w-xx), Math.min(ts,a.h-yy));
+    // border
+    ctx.strokeStyle = "#9c7b3a"; ctx.lineWidth = U*0.16;
+    roundRect(a.x, a.y, a.w, a.h, U*0.4); ctx.stroke();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function drawShadow(x, y, r) {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath(); ctx.ellipse(x, y + r*0.85, r*0.9, r*0.35, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  function drawHero() {
+    const s = hero.r;
+    drawShadow(hero.x, hero.y, s);
+    // blink when invulnerable
+    if (hero.invuln > 0 && Math.floor(hero.invuln * 12) % 2 === 0) return;
+    ctx.save();
+    ctx.translate(hero.x, hero.y);
+    const bob = hero.moving ? Math.sin(hero.walkPhase) * s*0.06 : 0;
+    ctx.translate(0, bob);
+
+    // shield on back (behind body), opposite facing
+    const ba = hero.dir + Math.PI;
+    ctx.save();
+    ctx.translate(Math.cos(ba)*s*0.5, Math.sin(ba)*s*0.5);
+    ctx.fillStyle = "#3a6fd6";
+    ctx.beginPath(); ctx.ellipse(0, 0, s*0.42, s*0.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#e8c14a";
+    ctx.beginPath(); ctx.ellipse(0, 0, s*0.22, s*0.28, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // body (green tunic)
+    ctx.fillStyle = "#3fae53";
+    ctx.beginPath(); ctx.arc(0, s*0.1, s*0.62, 0, Math.PI*2); ctx.fill();
+    // head
+    ctx.fillStyle = "#f1c9a5";
+    ctx.beginPath(); ctx.arc(0, -s*0.45, s*0.4, 0, Math.PI*2); ctx.fill();
+    // hat
+    ctx.fillStyle = "#2f9444";
+    ctx.beginPath();
+    ctx.moveTo(-s*0.4, -s*0.5); ctx.lineTo(s*0.4, -s*0.5);
+    ctx.lineTo(0, -s*1.25); ctx.closePath(); ctx.fill();
+    // eyes (face the move direction a touch)
+    const ex = Math.cos(hero.dir)*s*0.12;
+    ctx.fillStyle = "#222";
+    ctx.beginPath(); ctx.arc(-s*0.13+ex, -s*0.45, s*0.06, 0, Math.PI*2);
+    ctx.arc(s*0.13+ex, -s*0.45, s*0.06, 0, Math.PI*2); ctx.fill();
+
+    // weapon (drawn in facing direction, swings during attack)
+    ctx.save();
+    ctx.rotate(hero.dir + Math.PI/2);
+    let swingAng = 0;
+    if (hero.attack > 0) swingAng = (1 - hero.attack/0.26) * 1.8 - 0.9;
+    ctx.rotate(swingAng);
+    const reach = hero.weapon === "master" ? s*2.2 : s*1.6;
+    if (hero.weapon === "master") {
+      // blade
+      ctx.fillStyle = "#dff3ff"; ctx.strokeStyle="#8fc7ff"; ctx.lineWidth = s*0.06;
+      ctx.beginPath();
+      ctx.moveTo(-s*0.1, -s*0.4); ctx.lineTo(s*0.1, -s*0.4);
+      ctx.lineTo(s*0.06, -reach); ctx.lineTo(0,-reach-s*0.12); ctx.lineTo(-s*0.06,-reach);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // guard
+      ctx.fillStyle = "#f0d24a";
+      ctx.fillRect(-s*0.32, -s*0.5, s*0.64, s*0.14);
+      // hilt
+      ctx.fillStyle = "#3a6fd6";
+      ctx.fillRect(-s*0.08, -s*0.4, s*0.16, s*0.35);
+      // glow
+      ctx.strokeStyle = "rgba(150,220,255,0.5)"; ctx.lineWidth = s*0.16;
+      ctx.beginPath(); ctx.moveTo(0,-s*0.4); ctx.lineTo(0,-reach); ctx.stroke();
+    } else {
+      // wooden stick
+      ctx.strokeStyle = "#9c6b3a"; ctx.lineWidth = s*0.16; ctx.lineCap="round";
+      ctx.beginPath(); ctx.moveTo(0, -s*0.3); ctx.lineTo(0, -reach); ctx.stroke();
+      ctx.strokeStyle = "#7a4f28"; ctx.lineWidth = s*0.06;
+      ctx.beginPath(); ctx.moveTo(0,-reach*0.5); ctx.lineTo(s*0.12,-reach*0.62); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawGanonFace(s) {
+    // gray skin head with red hair, gold band + forehead stone
+    ctx.fillStyle = "#8a8f8a"; // gray skin
+    ctx.beginPath(); ctx.arc(0, -s*0.2, s*0.5, 0, Math.PI*2); ctx.fill();
+    // red hair
+    ctx.fillStyle = "#c2371f";
+    for (let i=0;i<7;i++){ const a=-Math.PI*0.95+i*(Math.PI*1.9/6);
+      ctx.beginPath(); ctx.moveTo(Math.cos(a)*s*0.4, -s*0.2+Math.sin(a)*s*0.4);
+      ctx.lineTo(Math.cos(a)*s*0.85, -s*0.2+Math.sin(a)*s*0.85);
+      ctx.lineTo(Math.cos(a+0.18)*s*0.42, -s*0.2+Math.sin(a+0.18)*s*0.42);
+      ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle="#8a8f8a"; ctx.beginPath(); ctx.arc(0,-s*0.2,s*0.5,0,Math.PI*2); ctx.fill();
+    // glowing forehead stone
+    ctx.fillStyle = "#ffd24a";
+    ctx.beginPath(); ctx.moveTo(0,-s*0.55); ctx.lineTo(s*0.12,-s*0.4); ctx.lineTo(0,-s*0.25); ctx.lineTo(-s*0.12,-s*0.4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,230,120,0.5)";
+    ctx.beginPath(); ctx.arc(0,-s*0.4, s*0.2, 0, Math.PI*2); ctx.fill();
+    // angry eyes
+    ctx.fillStyle = "#ffcf2e";
+    ctx.beginPath(); ctx.arc(-s*0.18,-s*0.18,s*0.08,0,Math.PI*2); ctx.arc(s*0.18,-s*0.18,s*0.08,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-s*0.18,-s*0.18,s*0.035,0,Math.PI*2); ctx.arc(s*0.18,-s*0.18,s*0.035,0,Math.PI*2); ctx.fill();
+  }
+
+  function drawEnemy(en) {
+    const s = en.r;
+    drawShadow(en.x, en.y, s);
+    ctx.save(); ctx.translate(en.x, en.y);
+    if (en.hurt > 0 && Math.floor(en.hurt*20)%2===0) ctx.globalAlpha = 0.5;
+    const wob = Math.sin(en.wob)*s*0.05;
+    ctx.translate(0, wob);
+
+    if (en.type === "mob") {
+      // dark goblin holding the master sword
+      ctx.fillStyle = "#6a4a8a"; ctx.beginPath(); ctx.arc(0, 0, s*0.85, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = "#4f3568"; ctx.beginPath(); ctx.arc(0, s*0.1, s*0.6, 0, Math.PI*2); ctx.fill();
+      // eyes
+      ctx.fillStyle="#ff5a4a"; ctx.beginPath(); ctx.arc(-s*0.25,-s*0.1,s*0.12,0,Math.PI*2); ctx.arc(s*0.25,-s*0.1,s*0.12,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(-s*0.22,-s*0.12,s*0.04,0,Math.PI*2); ctx.arc(s*0.28,-s*0.12,s*0.04,0,Math.PI*2); ctx.fill();
+      // a glimpse of the master sword on its back
+      ctx.save(); ctx.rotate(-0.5); ctx.translate(s*0.6,-s*0.3);
+      ctx.fillStyle="#dff3ff"; ctx.fillRect(-s*0.05,-s*0.9,s*0.1,s*0.9);
+      ctx.fillStyle="#f0d24a"; ctx.fillRect(-s*0.18,0,s*0.36,s*0.1); ctx.restore();
+    } else {
+      // Ganondorf forms share the face; body differs
+      if (en.type === "ganon-big") {
+        ctx.fillStyle = "#e8c14a"; // golden clothes
+        ctx.beginPath(); ctx.arc(0, s*0.35, s*0.78, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#caa12f";
+        ctx.fillRect(-s*0.12, 0, s*0.24, s); // robe stripe
+        drawGanonFace(s);
+      } else if (en.type === "ganon-tiny") {
+        ctx.fillStyle = "#e8c14a";
+        ctx.beginPath(); ctx.arc(0, s*0.3, s*0.7, 0, Math.PI*2); ctx.fill();
+        drawGanonFace(s*1.05);
+        // little speed lines
+        ctx.strokeStyle="rgba(255,255,255,0.4)"; ctx.lineWidth=s*0.08;
+        ctx.beginPath(); ctx.moveTo(-s*1.1,0); ctx.lineTo(-s*0.7,0); ctx.stroke();
+      } else { // dragon
+        const t = en.wob;
+        // wings
+        ctx.fillStyle = "#7a1810";
+        for (const sgn of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.quadraticCurveTo(sgn*s*1.6, -s*0.8 + Math.sin(t)*s*0.3, sgn*s*1.8, s*0.4);
+          ctx.quadraticCurveTo(sgn*s*0.9, s*0.2, 0, s*0.3);
+          ctx.closePath(); ctx.fill();
+        }
+        // body
+        ctx.fillStyle = "#c2371f";
+        ctx.beginPath(); ctx.ellipse(0, s*0.2, s*0.7, s*0.85, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#e35a3a";
+        ctx.beginPath(); ctx.ellipse(0, s*0.3, s*0.42, s*0.6, 0, 0, Math.PI*2); ctx.fill();
+        // dragon head
+        ctx.fillStyle = "#c2371f";
+        ctx.beginPath(); ctx.arc(0, -s*0.5, s*0.45, 0, Math.PI*2); ctx.fill();
+        // horns
+        ctx.fillStyle="#f0e0c0";
+        ctx.beginPath(); ctx.moveTo(-s*0.3,-s*0.7); ctx.lineTo(-s*0.5,-s*1.1); ctx.lineTo(-s*0.15,-s*0.8); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(s*0.3,-s*0.7); ctx.lineTo(s*0.5,-s*1.1); ctx.lineTo(s*0.15,-s*0.8); ctx.closePath(); ctx.fill();
+        // glowing stone on head
+        ctx.fillStyle="#ffd24a"; ctx.beginPath(); ctx.arc(0,-s*0.55,s*0.1,0,Math.PI*2); ctx.fill();
+        // eyes
+        ctx.fillStyle="#ffe27a"; ctx.beginPath(); ctx.arc(-s*0.18,-s*0.45,s*0.09,0,Math.PI*2); ctx.arc(s*0.18,-s*0.45,s*0.09,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-s*0.18,-s*0.45,s*0.04,0,Math.PI*2); ctx.arc(s*0.18,-s*0.45,s*0.04,0,Math.PI*2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // health bar above enemy
+    drawEnemyHp(en);
+  }
+
+  function drawEnemyHp(en) {
+    const w = en.r * 1.8, x = en.x - w/2, y = en.y - en.r*1.5;
+    ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fillRect(x-2, y-2, w+4, U*0.16+4);
+    ctx.fillStyle = "#3a1a1a"; ctx.fillRect(x, y, w, U*0.16);
+    ctx.fillStyle = en.type === "mob" ? "#7ad0ff" : "#ff5a3a";
+    ctx.fillRect(x, y, w * Math.max(0, en.hp/en.maxHp), U*0.16);
+  }
+
+  function drawFireball(f) {
+    ctx.save(); ctx.translate(f.x, f.y);
+    ctx.fillStyle = "#ffd24a"; ctx.beginPath(); ctx.arc(0,0,f.r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#ff7a2a"; ctx.beginPath(); ctx.arc(0,0,f.r*0.6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPickup(p) {
+    const s = U*0.5, bob = Math.sin(p.bob)*s*0.2;
+    ctx.save(); ctx.translate(p.x, p.y + bob);
+    // sparkle ring
+    ctx.strokeStyle = "rgba(159,227,255,"+(0.4+0.3*Math.sin(p.bob*2))+")"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0,0,s*1.1,0,Math.PI*2); ctx.stroke();
+    // master sword upright
+    ctx.fillStyle="#dff3ff"; ctx.fillRect(-s*0.1,-s*1.1,s*0.2,s*1.1);
+    ctx.fillStyle="#f0d24a"; ctx.fillRect(-s*0.4,0,s*0.8,s*0.18);
+    ctx.fillStyle="#3a6fd6"; ctx.fillRect(-s*0.12,s*0.18,s*0.24,s*0.5);
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHUD() {
+    // hearts
+    const hs = U * 0.42;
+    for (let i = 0; i < hero.maxHearts; i++) {
+      const x = U*0.7 + i * hs * 1.25 + hs*0.6, y = U*0.85;
+      drawHeart(x, y, hs*0.5, i < hero.hearts);
+    }
+    // banner
+    if (bannerT > 0 && banner) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, bannerT*2);
+      ctx.font = "800 " + Math.round(U*0.42) + "px -apple-system, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const tw = ctx.measureText(banner).width;
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      roundRect(W/2 - tw/2 - U*0.4, H*0.16 - U*0.45, tw + U*0.8, U*0.9, U*0.3); ctx.fill();
+      ctx.fillStyle = "#fff7d6"; ctx.fillText(banner, W/2, H*0.16);
+      ctx.restore();
+    }
+  }
+
+  function drawHeart(x, y, r, full) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(r/10, r/10);
+    ctx.beginPath();
+    ctx.moveTo(0, 6);
+    ctx.bezierCurveTo(-12, -4, -8, -14, 0, -6);
+    ctx.bezierCurveTo(8, -14, 12, -4, 0, 6);
+    ctx.closePath();
+    ctx.fillStyle = full ? "#ff4d5e" : "rgba(0,0,0,0.35)";
+    ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = full ? "#ffd6dc" : "rgba(255,255,255,0.25)"; ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- Main loop ----
+  function loop(now) {
+    let dt = (now - lastTime) / 1000; lastTime = now;
+    if (dt > 0.05) dt = 0.05;
+    if (state === "playing") update(dt);
+
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+    drawBackground();
+    for (const p of pickups) drawPickup(p);
+    // draw enemies behind/in front by y for a little depth
+    const drawList = enemies.slice().sort((a,b)=>a.y-b.y);
+    for (const en of drawList) if (en.y <= hero.y) drawEnemy(en);
+    drawHero();
+    for (const en of drawList) if (en.y > hero.y) drawEnemy(en);
+    for (const f of fireballs) drawFireball(f);
+    drawParticles();
+    drawHUD();
+    ctx.restore();
+
+    if (state === "playing" || shake > 0) requestAnimationFrame(loop);
+  }
+
+  function drawIdle() {
+    if (!hero) hero = makeHero();
+    ctx.save(); drawBackground();
+    ctx.restore();
+  }
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+  resize();
+  drawIdle();
+})();
+</script>
+</body>
+</html>
