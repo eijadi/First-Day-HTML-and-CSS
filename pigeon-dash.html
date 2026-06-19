@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#7ec8f2">
+<meta name="theme-color" content="#2f7fc0">
 <title>Pigeon Dash</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     height: 100%;
     overflow: hidden;
-    background: #7ec8f2;
+    background: #2f7fc0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overscroll-behavior: none;
     touch-action: none;
@@ -27,25 +27,24 @@
     position: fixed; inset: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; color: #fff; padding: 24px; z-index: 10;
-    background: rgba(40, 90, 130, 0.45);
+    background: rgba(20, 60, 95, 0.55);
     backdrop-filter: blur(2px);
   }
   .screen.hidden { display: none; }
   .title {
     font-size: clamp(40px, 13vw, 92px); font-weight: 900; letter-spacing: 1px;
     color: #fff;
-    text-shadow: 0 4px 0 #2e7bb0, 0 8px 24px rgba(0,0,0,.35);
+    text-shadow: 0 4px 0 #205a86, 0 8px 24px rgba(0,0,0,.4);
     line-height: 0.95;
   }
-  .emoji-title { font-size: clamp(54px, 17vw, 120px); line-height: 1; margin-bottom: 6px; }
   .sub {
     margin-top: 18px; font-size: clamp(16px, 4.5vw, 22px);
-    color: #f3fbff; opacity: 0.97; max-width: 440px; line-height: 1.45;
+    color: #f3fbff; opacity: 0.97; max-width: 460px; line-height: 1.45;
   }
-  .sub b { color: #fff36b; }
+  .sub b { color: #ffe14d; }
   .big {
-    font-size: clamp(54px, 18vw, 120px); font-weight: 900; color: #fff36b;
-    text-shadow: 0 4px 0 #c79a12, 0 10px 28px rgba(0,0,0,.4); line-height: 1;
+    font-size: clamp(54px, 18vw, 120px); font-weight: 900; color: #ffe14d;
+    text-shadow: 0 4px 0 #b8930e, 0 10px 28px rgba(0,0,0,.45); line-height: 1;
   }
   .label {
     font-size: clamp(14px, 4vw, 18px); letter-spacing: 3px; text-transform: uppercase;
@@ -59,25 +58,25 @@
   }
   .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #c79a12; }
   .best { margin-top: 22px; font-size: clamp(15px, 4vw, 19px); color: #f3fbff; opacity: .9; }
-  .hint { margin-top: 16px; font-size: clamp(13px, 3.6vw, 16px); color: #f3fbff; opacity: .75; }
+  .hint { margin-top: 16px; font-size: clamp(13px, 3.6vw, 16px); color: #f3fbff; opacity: .8; }
 
   /* Fire button */
   #fireBtn {
     position: fixed; right: 22px; bottom: 26px; z-index: 9;
-    width: 92px; height: 92px; border-radius: 50%; border: none;
-    background: radial-gradient(circle at 35% 30%, #ffb24a, #ff5a1f);
-    box-shadow: 0 6px 0 #b8350c, 0 10px 22px rgba(0,0,0,.4);
-    font-size: 44px; line-height: 1; cursor: pointer; display: none;
+    width: 96px; height: 96px; border-radius: 50%; border: 4px solid #fff;
+    background: radial-gradient(circle at 35% 30%, #ffd24a, #ff4d12);
+    box-shadow: 0 6px 0 #b8350c, 0 10px 22px rgba(0,0,0,.45);
+    font-size: 30px; font-weight: 900; color: #fff; line-height: 1; cursor: pointer; display: none;
     align-items: center; justify-content: center; padding: 0;
   }
   #fireBtn.show { display: flex; }
   #fireBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #b8350c; }
   #fireCount {
-    position: absolute; top: -6px; right: -6px;
-    background: #fff; color: #ff5a1f; font-weight: 900;
-    font-size: 18px; min-width: 26px; height: 26px; border-radius: 999px;
+    position: absolute; top: -8px; right: -8px;
+    background: #fff; color: #ff4d12; font-weight: 900;
+    font-size: 18px; min-width: 28px; height: 28px; border-radius: 999px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,.3); padding: 0 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35); padding: 0 6px;
   }
 </style>
 </head>
@@ -86,16 +85,15 @@
   <canvas id="game"></canvas>
 </div>
 
-<button id="fireBtn" aria-label="Shoot fireball">🔥<span id="fireCount">0</span></button>
+<button id="fireBtn" aria-label="Shoot fireball">FIRE<span id="fireCount">0</span></button>
 
 <!-- Start screen -->
 <div id="startScreen" class="screen">
-  <div class="emoji-title">🐦</div>
   <div class="title">PIGEON<br>DASH</div>
-  <div class="sub">Fly forward and dodge the <b>🎈 balloons</b> and <b>🪁 kites</b>! Touch <b>higher</b> to fly up, <b>lower</b> to fly down. Grab <b>🎁 boxes</b> for hearts and power-ups!</div>
+  <div class="sub"><b>Tap, tap, tap</b> to flap and fly up. <b>Stop tapping</b> to glide down. Dodge the <b>balloons</b> and <b>kites</b>, and grab the <b>gift boxes</b> for hearts and power-ups!</div>
   <button class="btn" id="startBtn">PLAY</button>
   <div class="best" id="startBest"></div>
-  <div class="hint">Hold and slide your finger up or down to fly</div>
+  <div class="hint">Tap anywhere to flap</div>
 </div>
 
 <!-- Game over screen -->
@@ -125,6 +123,7 @@
   const fireCount   = document.getElementById("fireCount");
 
   let W = 0, H = 0, DPR = 1;
+  let GRAVITY = 2400, FLAP_V = -700, MAX_FALL = 1100;
 
   // ---- Game state ----
   let state = "start"; // start | playing | over
@@ -149,10 +148,14 @@
   let ammo = 0;           // fireball launcher shots
   let toast = null;       // { text, life }
 
-  // The pigeon. Fixed x; player controls target altitude with touch Y.
-  const pigeon = { x: 0, y: 0, targetY: 0, size: 70, vy: 0, tilt: 0, flap: 0 };
+  // The pigeon. Fixed x; altitude is physics-driven (Flappy-style).
+  const pigeon = { x: 0, y: 0, vy: 0, size: 70, tilt: 0, flap: 0, flapKick: 0 };
+
+  const BALLOON_COLORS = ["#ec3b2f", "#ff62a6", "#ff8c1a", "#8a5cf0", "#e23bd0"];
+  const KITE_COLORS    = ["#13b8cf", "#ffce2e", "#ff5a3c", "#5bd11f", "#3b7bff"];
 
   function rand(a, b) { return a + Math.random() * (b - a); }
+  function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -164,27 +167,31 @@
     canvas.style.height = H + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     pigeon.size = Math.max(48, Math.min(W, H) * 0.12);
-    pigeon.x = W * 0.22;
-    if (state !== "playing") { pigeon.y = H * 0.5; pigeon.targetY = H * 0.5; }
+    pigeon.x = W * 0.24;
+    // Tune the flap physics to the screen height so it feels the same everywhere.
+    GRAVITY  = H * 2.6;
+    FLAP_V   = -H * 0.78;
+    MAX_FALL = H * 1.15;
+    if (state !== "playing") pigeon.y = H * 0.5;
     if (clouds.length === 0) seedClouds();
   }
 
   function seedClouds() {
     clouds = [];
     for (let i = 0; i < 5; i++) {
-      clouds.push({ x: rand(0, W), y: rand(H * 0.08, H * 0.6), s: rand(40, 90), v: rand(8, 22) });
+      clouds.push({ x: rand(0, W), y: rand(H * 0.06, H * 0.62), s: rand(50, 110), v: rand(10, 26) });
     }
   }
 
   function reset() {
     score = 0; distance = 0;
     hearts = MAX_HEARTS;
-    speed = Math.max(180, W * 0.30);   // starts easy
+    speed = Math.max(170, W * 0.28);   // starts easy
     obstacles = []; boxes = []; fireballs = []; particles = [];
-    spawnTimer = 0; nextSpawn = 1.2;
+    spawnTimer = 0; nextSpawn = 1.3;
     boxTimer = 0; nextBox = 4.5;
     shake = 0; invuln = 0; smashTime = 0; ammo = 0; toast = null;
-    pigeon.y = H * 0.5; pigeon.targetY = H * 0.5; pigeon.vy = 0; pigeon.tilt = 0;
+    pigeon.y = H * 0.45; pigeon.vy = 0; pigeon.tilt = 0; pigeon.flapKick = 0;
     updateFireBtn();
   }
 
@@ -207,7 +214,7 @@
     }
     finalScore.textContent = score;
     overBest.textContent = "Best: " + best + " m";
-    burst(pigeon.x + pigeon.size * 0.4, pigeon.y, "#cfd8e0", 26);
+    burst(pigeon.x + pigeon.size * 0.3, pigeon.y, "#cfd8e0", 26);
     updateFireBtn();
     setTimeout(() => overScreen.classList.remove("hidden"), 380);
   }
@@ -215,24 +222,23 @@
   // ---- Power-ups ----
   function collectBox(b) {
     boxes.splice(boxes.indexOf(b), 1);
-    burst(b.x, b.y, "#ffe27a", 16);
+    burst(b.x, b.y, "#ffe27a", 18);
     if (hearts < MAX_HEARTS) {
       hearts++;
-      showToast("❤️ Heart!");
+      showToast("+1 HEART!", "#ff5a7a");
     } else {
-      // Hearts are full -> grant a power-up.
       if (Math.random() < 0.5) {
         ammo += 3;
         updateFireBtn();
-        showToast("🔥 Fireball Launcher!");
+        showToast("FIREBALL LAUNCHER!", "#ff6a1a");
       } else {
         smashTime = 6;
-        showToast("💪 Super-Size Smash!");
+        showToast("SUPER-SIZE SMASH!", "#ffd21a");
       }
     }
   }
 
-  function showToast(text) { toast = { text: text, life: 1.6 }; }
+  function showToast(text, color) { toast = { text: text, color: color || "#fff", life: 1.7 }; }
 
   function updateFireBtn() {
     if (state === "playing" && ammo > 0) {
@@ -247,7 +253,7 @@
     if (state !== "playing" || ammo <= 0) return;
     ammo--;
     updateFireBtn();
-    fireballs.push({ x: pigeon.x + pigeon.size * 0.4, y: pigeon.y, r: pigeon.size * 0.32 });
+    fireballs.push({ x: pigeon.x + pigeon.size * 0.4, y: pigeon.y, r: pigeon.size * 0.34 });
     burst(pigeon.x + pigeon.size * 0.5, pigeon.y, "#ff8a3c", 8);
   }
 
@@ -256,8 +262,8 @@
     for (let i = 0; i < n; i++) {
       particles.push({
         x: x, y: y,
-        vx: (Math.random() - 0.5) * 520,
-        vy: (Math.random() - 0.5) * 520 - 60,
+        vx: (Math.random() - 0.5) * 540,
+        vy: (Math.random() - 0.5) * 540 - 60,
         life: 0.4 + Math.random() * 0.5, max: 0.9,
         r: 2 + Math.random() * 5, color: color
       });
@@ -267,48 +273,41 @@
   // ---- Spawning ----
   function spawnObstacle() {
     const isKite = Math.random() < 0.45;
-    const size = Math.max(40, Math.min(W, H) * (isKite ? 0.11 : 0.10));
-    const y = rand(size, H - size * (isKite ? 2.4 : 1.2));
-    obstacles.push({
-      type: isKite ? "kite" : "balloon",
-      emoji: isKite ? "🪁" : (Math.random() < 0.5 ? "🎈" : "🎈"),
-      x: W + size, y: y, size: size,
-      // kites have a dangling string that also hurts
-      stringLen: isKite ? size * 1.6 : 0,
-      bob: rand(0, Math.PI * 2)
-    });
+    const size = Math.max(40, Math.min(W, H) * (isKite ? 0.12 : 0.105));
+    if (isKite) {
+      const tail = size * 1.7;
+      const y = rand(size * 0.8, H - size - tail);
+      obstacles.push({ type: "kite", x: W + size, y: y, size: size, color: pick(KITE_COLORS), tail: tail, bob: rand(0, 6.28) });
+    } else {
+      const y = rand(size, H - size * 1.3);
+      obstacles.push({ type: "balloon", x: W + size, y: y, size: size, color: pick(BALLOON_COLORS), tail: 0, bob: rand(0, 6.28) });
+    }
   }
 
   function spawnBox() {
-    const size = Math.max(42, Math.min(W, H) * 0.11);
-    boxes.push({ x: W + size, y: rand(size, H - size), size: size, bob: rand(0, Math.PI * 2) });
+    const size = Math.max(44, Math.min(W, H) * 0.115);
+    boxes.push({ x: W + size, y: rand(size, H - size), size: size, bob: rand(0, 6.28) });
   }
 
-  // ---- Input: altitude follows finger / pointer Y ----
-  function pointAt(e) {
+  // ---- Input: tap to flap (Flappy-style) ----
+  function flap() {
     if (state !== "playing") return;
-    const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-    if (typeof t.clientY === "number") {
-      pigeon.targetY = Math.max(pigeon.size * 0.4, Math.min(H - pigeon.size * 0.4, t.clientY));
-    }
+    pigeon.vy = FLAP_V;
+    pigeon.flapKick = 1;
+    particles.push({
+      x: pigeon.x - pigeon.size * 0.4, y: pigeon.y + pigeon.size * 0.2,
+      vx: -rand(40, 160), vy: rand(20, 120),
+      life: 0.35, max: 0.35, r: 3 + Math.random() * 3, color: "rgba(255,255,255,0.85)"
+    });
   }
-  canvas.addEventListener("pointerdown", pointAt);
-  canvas.addEventListener("pointermove", function (e) {
-    if (e.pointerType === "mouse" && e.buttons === 0) { pointAt(e); return; }
-    pointAt(e);
-  });
-  // Keyboard for desktop testing.
-  window.addEventListener("keydown", function (e) {
-    if (state === "playing") {
-      if (e.key === "ArrowUp")   pigeon.targetY = Math.max(pigeon.size * 0.4, pigeon.targetY - H * 0.12);
-      if (e.key === "ArrowDown") pigeon.targetY = Math.min(H - pigeon.size * 0.4, pigeon.targetY + H * 0.12);
-      if (e.key === " " || e.key === "f") shoot();
-    }
-  });
 
-  fireBtn.addEventListener("pointerdown", function (e) {
-    e.preventDefault(); e.stopPropagation(); shoot();
+  canvas.addEventListener("pointerdown", function (e) { e.preventDefault(); flap(); });
+  window.addEventListener("keydown", function (e) {
+    if (state !== "playing") return;
+    if (e.key === " " || e.key === "ArrowUp" || e.key === "w") { e.preventDefault(); flap(); }
+    if (e.key === "f") shoot();
   });
+  fireBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); shoot(); });
 
   startBtn.addEventListener("click", startGame);
   retryBtn.addEventListener("click", startGame);
@@ -316,88 +315,78 @@
   // ---- Collision helpers ----
   function hitPigeon(cx, cy, cr) {
     const dx = cx - pigeon.x, dy = cy - pigeon.y;
-    const rr = cr + pigeon.size * 0.36;
+    const rr = cr + pigeon.size * 0.34;
     return dx * dx + dy * dy < rr * rr;
   }
 
   function update(dt) {
     distance += speed * dt * 0.05;
-    // Gentle ramp: starts easy, slowly speeds up.
-    speed += dt * 7;
+    speed += dt * 6.5;   // gentle ramp
 
     if (invuln > 0) invuln -= dt;
     if (smashTime > 0) smashTime -= dt;
     if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
+    if (pigeon.flapKick > 0) pigeon.flapKick = Math.max(0, pigeon.flapKick - dt * 4);
 
-    // Pigeon eases toward the target altitude.
-    const prevY = pigeon.y;
-    pigeon.y += (pigeon.targetY - pigeon.y) * Math.min(1, dt * 9);
-    pigeon.vy = (pigeon.y - prevY) / Math.max(dt, 0.0001);
-    pigeon.tilt = Math.max(-0.5, Math.min(0.5, pigeon.vy * 0.0012));
-    pigeon.flap += dt * 14;
+    // Physics: gravity pulls down, taps push up.
+    pigeon.vy += GRAVITY * dt;
+    if (pigeon.vy > MAX_FALL) pigeon.vy = MAX_FALL;
+    pigeon.y += pigeon.vy * dt;
 
-    // Clouds drift.
+    // Keep the pigeon on screen (forgiving — no death by floor/ceiling).
+    const top = pigeon.size * 0.5, bot = H - pigeon.size * 0.5;
+    if (pigeon.y < top) { pigeon.y = top; if (pigeon.vy < 0) pigeon.vy = 0; }
+    if (pigeon.y > bot) { pigeon.y = bot; pigeon.vy = 0; }
+
+    pigeon.tilt = Math.max(-0.5, Math.min(0.7, pigeon.vy * 0.0009));
+    pigeon.flap += dt * (10 + pigeon.flapKick * 26);
+
     for (const c of clouds) {
       c.x -= c.v * dt;
-      if (c.x < -c.s * 2) { c.x = W + c.s; c.y = rand(H * 0.08, H * 0.6); }
+      if (c.x < -c.s * 2) { c.x = W + c.s; c.y = rand(H * 0.06, H * 0.62); }
     }
 
-    // Spawn obstacles.
     spawnTimer += dt;
     if (spawnTimer >= nextSpawn) {
-      spawnTimer = 0;
-      spawnObstacle();
-      // closer together as it speeds up, but never brutal
-      nextSpawn = Math.max(0.7, rand(1.3, 1.9) - distance * 0.0008);
+      spawnTimer = 0; spawnObstacle();
+      nextSpawn = Math.max(0.72, rand(1.3, 1.9) - distance * 0.0008);
     }
-    // Spawn boxes occasionally.
     boxTimer += dt;
-    if (boxTimer >= nextBox) {
-      boxTimer = 0; spawnBox();
-      nextBox = rand(4.5, 7.5);
-    }
+    if (boxTimer >= nextBox) { boxTimer = 0; spawnBox(); nextBox = rand(4.5, 7.5); }
 
-    // Move + collide obstacles.
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const o = obstacles[i];
       o.x -= speed * dt;
       o.bob += dt * 3;
-      if (o.x < -o.size * 2) { obstacles.splice(i, 1); continue; }
+      if (o.x < -o.size * 2 - o.tail) { obstacles.splice(i, 1); continue; }
 
-      // Fireball hits.
       let destroyed = false;
       for (let j = fireballs.length - 1; j >= 0; j--) {
         const f = fireballs[j];
         const dx = f.x - o.x, dy = f.y - o.y;
-        const rr = f.r + o.size * 0.45;
+        const rr = f.r + o.size * 0.5;
         if (dx * dx + dy * dy < rr * rr) {
-          burst(o.x, o.y, "#ff7a3c", 16);
+          burst(o.x, o.y, o.color, 18);
           obstacles.splice(i, 1); fireballs.splice(j, 1);
           destroyed = true; break;
         }
       }
       if (destroyed) continue;
 
-      // Player collision (balloon body + kite string).
-      let touched = hitPigeon(o.x, o.y, o.size * 0.45);
-      if (!touched && o.stringLen > 0) {
-        // string hangs below the kite
-        const sx = o.x;
-        const topY = o.y + o.size * 0.3, botY = o.y + o.stringLen;
-        if (pigeon.x > sx - pigeon.size * 0.4 && pigeon.x < sx + pigeon.size * 0.4 &&
-            pigeon.y > topY - pigeon.size * 0.3 && pigeon.y < botY + pigeon.size * 0.3) {
+      let touched = hitPigeon(o.x, o.y, o.size * 0.46);
+      if (!touched && o.tail > 0) {
+        const topY = o.y + o.size * 0.4, botY = o.y + o.tail;
+        if (pigeon.x > o.x - pigeon.size * 0.35 && pigeon.x < o.x + pigeon.size * 0.35 &&
+            pigeon.y > topY - pigeon.size * 0.25 && pigeon.y < botY + pigeon.size * 0.25) {
           touched = true;
         }
       }
       if (touched) {
         if (smashTime > 0) {
-          burst(o.x, o.y, "#ffd23c", 18);
-          obstacles.splice(i, 1);
-          shake = 8;
+          burst(o.x, o.y, "#ffd23c", 20);
+          obstacles.splice(i, 1); shake = 8;
         } else if (invuln <= 0) {
-          hearts--;
-          invuln = 1.1;
-          shake = 12;
+          hearts--; invuln = 1.1; shake = 12;
           burst(o.x, o.y, "#ff5a5a", 16);
           obstacles.splice(i, 1);
           if (hearts <= 0) { gameOver(); return; }
@@ -405,23 +394,20 @@
       }
     }
 
-    // Move + collect boxes.
     for (let i = boxes.length - 1; i >= 0; i--) {
       const b = boxes[i];
       b.x -= speed * dt * 0.92;
       b.bob += dt * 3;
       if (b.x < -b.size * 2) { boxes.splice(i, 1); continue; }
-      if (hitPigeon(b.x, b.y, b.size * 0.42)) { collectBox(b); }
+      if (hitPigeon(b.x, b.y, b.size * 0.45)) collectBox(b);
     }
 
-    // Move fireballs.
     for (let i = fireballs.length - 1; i >= 0; i--) {
       const f = fireballs[i];
-      f.x += (speed + 600) * dt;
+      f.x += (speed + 640) * dt;
       if (f.x > W + 80) fireballs.splice(i, 1);
     }
 
-    // Particles.
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.x += p.vx * dt; p.y += p.vy * dt;
@@ -432,125 +418,247 @@
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
   }
 
-  // ---- Drawing ----
-  function drawEmoji(emoji, x, y, size, rot) {
+  // ---- Vector drawing ----
+  function outline(w) { ctx.strokeStyle = "rgba(20,35,55,0.9)"; ctx.lineWidth = w; ctx.stroke(); }
+
+  function drawCloud(x, y, s) {
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x - s * 0.5, y, s * 0.45, 0, 6.2832);
+    ctx.arc(x, y - s * 0.18, s * 0.55, 0, 6.2832);
+    ctx.arc(x + s * 0.55, y, s * 0.48, 0, 6.2832);
+    ctx.arc(x, y + s * 0.12, s * 0.5, 0, 6.2832);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSun(x, y, r) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,232,120,0.55)";
+    ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#ffe04a";
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBalloon(x, y, s, color) {
+    const r = s * 0.46;
+    // string
+    ctx.strokeStyle = "rgba(20,35,55,0.55)"; ctx.lineWidth = Math.max(2, s * 0.04);
+    ctx.beginPath(); ctx.moveTo(x, y + r); ctx.quadraticCurveTo(x + s * 0.12, y + r + s * 0.4, x, y + r + s * 0.7); ctx.stroke();
+    // body
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * 1.12, 0, 0, 6.2832); ctx.fill();
+    outline(Math.max(3, s * 0.06));
+    // knot
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(x - s * 0.06, y + r * 1.05); ctx.lineTo(x + s * 0.06, y + r * 1.05); ctx.lineTo(x, y + r * 1.22); ctx.closePath(); ctx.fill();
+    // highlight
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath(); ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.18, r * 0.3, -0.5, 0, 6.2832); ctx.fill();
+  }
+
+  function drawKite(x, y, s, color, tail) {
+    const w = s * 0.5, h = s * 0.62;
+    // tail with little bows
+    ctx.strokeStyle = "rgba(20,35,55,0.6)"; ctx.lineWidth = Math.max(2, s * 0.04);
+    ctx.beginPath(); ctx.moveTo(x, y + h);
+    for (let i = 1; i <= 5; i++) {
+      const ty = y + h + (tail - h) * (i / 5);
+      const tx = x + Math.sin(i * 1.7) * s * 0.16;
+      ctx.lineTo(tx, ty);
+    }
+    ctx.stroke();
+    ctx.fillStyle = color;
+    for (let i = 1; i <= 4; i++) {
+      const ty = y + h + (tail - h) * (i / 5);
+      const tx = x + Math.sin(i * 1.7) * s * 0.16;
+      ctx.beginPath(); ctx.moveTo(tx - s * 0.08, ty); ctx.lineTo(tx, ty - s * 0.06); ctx.lineTo(tx + s * 0.08, ty); ctx.lineTo(tx, ty + s * 0.06); ctx.closePath(); ctx.fill();
+    }
+    // diamond body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - h); ctx.lineTo(x + w, y); ctx.lineTo(x, y + h); ctx.lineTo(x - w, y); ctx.closePath();
+    ctx.fill();
+    outline(Math.max(3, s * 0.06));
+    // cross spars
+    ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = Math.max(2, s * 0.035);
+    ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x, y + h); ctx.moveTo(x - w, y); ctx.lineTo(x + w, y); ctx.stroke();
+  }
+
+  function drawBox(x, y, s) {
+    const r = s * 0.4;
+    // sparkle
+    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = Math.max(2, s * 0.04);
+    for (let a = 0; a < 4; a++) {
+      const ang = a * Math.PI / 2 + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(ang) * r * 1.35, y + Math.sin(ang) * r * 1.35);
+      ctx.lineTo(x + Math.cos(ang) * r * 1.7, y + Math.sin(ang) * r * 1.7);
+      ctx.stroke();
+    }
+    // body
+    ctx.fillStyle = "#ffc21a";
+    roundRect(x - r, y - r * 0.8, r * 2, r * 1.8, s * 0.08); ctx.fill(); outline(Math.max(3, s * 0.06));
+    // lid
+    ctx.fillStyle = "#ffd750";
+    roundRect(x - r * 1.12, y - r * 1.1, r * 2.24, r * 0.5, s * 0.06); ctx.fill(); outline(Math.max(3, s * 0.05));
+    // ribbon
+    ctx.fillStyle = "#e8392f";
+    ctx.fillRect(x - r * 0.16, y - r * 0.8, r * 0.32, r * 1.8);
+    // bow
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.85);
+    ctx.quadraticCurveTo(x - r * 0.7, y - r * 1.5, x - r * 0.05, y - r * 1.05);
+    ctx.quadraticCurveTo(x + r * 0.7, y - r * 1.5, x + r * 0.05, y - r * 1.05);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawPigeon(cx, cy, s, tilt, big) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
+    if (big) ctx.scale(1.55, 1.55);
+    const lw = Math.max(3, s * 0.05);
+    // tail
+    ctx.fillStyle = "#48535f";
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.42, 0); ctx.lineTo(-s * 0.78, -s * 0.16); ctx.lineTo(-s * 0.72, s * 0.18); ctx.closePath();
+    ctx.fill(); outline(lw);
+    // body
+    ctx.fillStyle = "#7d8a99";
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.46, s * 0.34, 0, 0, 6.2832); ctx.fill(); outline(lw);
+    // belly
+    ctx.fillStyle = "#b9c4d0";
+    ctx.beginPath(); ctx.ellipse(s * 0.05, s * 0.12, s * 0.34, s * 0.2, 0, 0, 6.2832); ctx.fill();
+    // head
+    ctx.fillStyle = "#8b97a6";
+    ctx.beginPath(); ctx.arc(s * 0.34, -s * 0.12, s * 0.24, 0, 6.2832); ctx.fill(); outline(lw);
+    // wing (flaps)
+    const wf = Math.sin(pigeon.flap);
+    ctx.save();
+    ctx.translate(-s * 0.02, -s * 0.04);
+    ctx.rotate(wf * 0.5 - 0.1);
+    ctx.fillStyle = "#5d6b7a";
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.3, s * 0.17, 0, 0, 6.2832); ctx.fill(); outline(lw);
+    ctx.restore();
+    // beak
+    ctx.fillStyle = "#f5a623";
+    ctx.beginPath();
+    ctx.moveTo(s * 0.55, -s * 0.14); ctx.lineTo(s * 0.8, -s * 0.06); ctx.lineTo(s * 0.55, s * 0.0); ctx.closePath();
+    ctx.fill(); outline(Math.max(2, s * 0.035));
+    // eye
+    ctx.fillStyle = "#1b2530";
+    ctx.beginPath(); ctx.arc(s * 0.42, -s * 0.16, s * 0.055, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(s * 0.44, -s * 0.18, s * 0.02, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFireball(x, y, r) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,180,60,0.5)";
+    ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#ff7a1a";
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#ffe04a";
+    ctx.beginPath(); ctx.arc(x - r * 0.15, y - r * 0.15, r * 0.55, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHeart(x, y, s, filled) {
     ctx.save();
     ctx.translate(x, y);
-    if (rot) ctx.rotate(rot);
-    ctx.font = size + "px -apple-system, 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(emoji, 0, 0);
+    ctx.beginPath();
+    ctx.moveTo(0, s * 0.3);
+    ctx.bezierCurveTo(s * 0.5, -s * 0.2, s * 0.5, -s * 0.55, 0, -s * 0.25);
+    ctx.bezierCurveTo(-s * 0.5, -s * 0.55, -s * 0.5, -s * 0.2, 0, s * 0.3);
+    ctx.closePath();
+    ctx.fillStyle = filled ? "#ff4d6a" : "rgba(255,255,255,0.25)";
+    ctx.fill();
+    ctx.strokeStyle = filled ? "#b8253f" : "rgba(255,255,255,0.7)";
+    ctx.lineWidth = Math.max(2, s * 0.08); ctx.stroke();
     ctx.restore();
   }
 
   function draw() {
-    // Sky gradient.
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "#5fb6ee");
-    g.addColorStop(1, "#bfe6ff");
+    g.addColorStop(0, "#2f7fc0");
+    g.addColorStop(1, "#8fd0ff");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // Sun.
-    drawEmoji("☀️", W * 0.86, H * 0.16, Math.min(W, H) * 0.14, 0);
-
-    // Clouds.
-    ctx.globalAlpha = 0.9;
-    for (const c of clouds) drawEmoji("☁️", c.x, c.y, c.s, 0);
-    ctx.globalAlpha = 1;
+    drawSun(W * 0.85, H * 0.14, Math.min(W, H) * 0.07);
+    for (const c of clouds) drawCloud(c.x, c.y, c.s);
 
     let sx = 0, sy = 0;
     if (shake > 0) { sx = rand(-shake, shake); sy = rand(-shake, shake); }
     ctx.save();
     ctx.translate(sx, sy);
 
-    // Boxes.
-    for (const b of boxes) {
-      const yy = b.y + Math.sin(b.bob) * 6;
-      // little sparkle ring so kids spot them as good
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      drawEmoji("✨", b.x, yy, b.size * 1.25, 0);
-      ctx.restore();
-      drawEmoji("🎁", b.x, yy, b.size, 0);
-    }
+    for (const b of boxes) drawBox(b.x, b.y + Math.sin(b.bob) * 6, b.size);
 
-    // Obstacles.
     for (const o of obstacles) {
       const yy = o.y + Math.sin(o.bob) * 5;
-      if (o.stringLen > 0) {
-        // kite string
-        ctx.strokeStyle = "rgba(80,60,40,0.65)";
-        ctx.lineWidth = Math.max(2, o.size * 0.05);
-        ctx.beginPath();
-        ctx.moveTo(o.x, yy + o.size * 0.25);
-        ctx.lineTo(o.x, o.y + o.stringLen);
-        ctx.stroke();
-      }
-      drawEmoji(o.emoji, o.x, yy, o.size, 0);
+      if (o.type === "kite") drawKite(o.x, yy, o.size, o.color, o.tail);
+      else drawBalloon(o.x, yy, o.size, o.color);
     }
 
-    // Fireballs.
-    for (const f of fireballs) drawEmoji("🔥", f.x, f.y, f.r * 2.2, 0);
+    for (const f of fireballs) drawFireball(f.x, f.y, f.r);
 
-    // Pigeon (flashing while invulnerable).
     const flashing = invuln > 0 && Math.floor(invuln * 12) % 2 === 0;
-    if (!flashing) {
-      const scale = smashTime > 0 ? 1.6 : 1;
-      const wing = Math.sin(pigeon.flap) * 0.08;
-      if (smashTime > 0) {
-        ctx.save(); ctx.globalAlpha = 0.45;
-        drawEmoji("💪", pigeon.x, pigeon.y, pigeon.size * scale * 1.4, 0);
-        ctx.restore();
-      }
-      drawEmoji("🐦", pigeon.x, pigeon.y, pigeon.size * (scale + wing), pigeon.tilt);
-    }
+    if (!flashing) drawPigeon(pigeon.x, pigeon.y, pigeon.size, pigeon.tilt, smashTime > 0);
 
-    // Particles.
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832); ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.restore();
 
     // ---- HUD ----
-    // Hearts (big & legible).
-    const hs = Math.max(26, Math.min(W, H) * 0.06);
+    const hs = Math.max(24, Math.min(W, H) * 0.055);
     for (let i = 0; i < MAX_HEARTS; i++) {
-      drawEmoji(i < hearts ? "❤️" : "🤍", 18 + hs * 0.5 + i * (hs * 0.95), 14 + hs * 0.5, hs, 0);
+      drawHeart(20 + hs * 0.6 + i * (hs * 1.15), 20 + hs * 0.5, hs, i < hearts);
     }
 
-    // Score.
-    ctx.fillStyle = "#0c3550";
-    ctx.font = "900 " + Math.max(22, Math.min(W, H) * 0.06) + "px -apple-system, sans-serif";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "top";
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "rgba(20,55,90,0.9)";
+    ctx.lineWidth = Math.max(3, Math.min(W, H) * 0.012);
+    ctx.font = "900 " + Math.max(24, Math.min(W, H) * 0.07) + "px -apple-system, sans-serif";
+    ctx.textAlign = "right"; ctx.textBaseline = "top";
+    ctx.strokeText(Math.floor(distance) + " m", W - 18, 14);
     ctx.fillText(Math.floor(distance) + " m", W - 18, 14);
 
-    // Smash timer pill.
     if (smashTime > 0) {
       ctx.textAlign = "center";
       ctx.font = "800 " + Math.max(16, Math.min(W, H) * 0.04) + "px -apple-system, sans-serif";
-      ctx.fillStyle = "#b8350c";
-      ctx.fillText("💪 SMASH " + Math.ceil(smashTime) + "s", W * 0.5, 16);
+      ctx.fillStyle = "#fff"; ctx.strokeStyle = "rgba(184,53,12,0.9)"; ctx.lineWidth = 4;
+      ctx.strokeText("SMASH " + Math.ceil(smashTime) + "s", W * 0.5, 18);
+      ctx.fillText("SMASH " + Math.ceil(smashTime) + "s", W * 0.5, 18);
     }
 
-    // Toast announcement.
     if (toast) {
       ctx.globalAlpha = Math.min(1, toast.life);
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = "900 " + Math.max(26, Math.min(W, H) * 0.075) + "px -apple-system, sans-serif";
-      ctx.fillStyle = "#fff";
-      ctx.strokeStyle = "rgba(12,53,80,0.85)";
-      ctx.lineWidth = 6;
-      ctx.strokeText(toast.text, W * 0.5, H * 0.3);
-      ctx.fillText(toast.text, W * 0.5, H * 0.3);
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = "900 " + Math.max(24, Math.min(W, H) * 0.07) + "px -apple-system, sans-serif";
+      ctx.strokeStyle = "rgba(15,45,75,0.9)"; ctx.lineWidth = 7;
+      ctx.strokeText(toast.text, W * 0.5, H * 0.28);
+      ctx.fillStyle = toast.color;
+      ctx.fillText(toast.text, W * 0.5, H * 0.28);
       ctx.globalAlpha = 1;
     }
   }
@@ -559,22 +667,23 @@
     if (state !== "playing") return;
     let dt = (now - lastTime) / 1000;
     lastTime = now;
-    if (dt > 0.05) dt = 0.05; // clamp big gaps
+    if (dt > 0.05) dt = 0.05;
     update(dt);
     if (state === "playing") { draw(); requestAnimationFrame(loop); }
   }
 
-  // Idle/menu animation so the start screen isn't a frozen canvas.
+  // Idle/menu animation behind the start screen.
   function idle(now) {
     if (state === "playing") return;
     const dt = Math.min(0.05, (now - (idle._t || now)) / 1000);
     idle._t = now;
     for (const c of clouds) {
       c.x -= c.v * dt;
-      if (c.x < -c.s * 2) { c.x = W + c.s; c.y = rand(H * 0.08, H * 0.6); }
+      if (c.x < -c.s * 2) { c.x = W + c.s; c.y = rand(H * 0.06, H * 0.62); }
     }
-    pigeon.flap += dt * 6;
+    pigeon.flap += dt * 7;
     pigeon.y = H * 0.5 + Math.sin(now * 0.002) * H * 0.04;
+    pigeon.tilt = Math.sin(now * 0.002) * 0.12;
     draw();
     requestAnimationFrame(idle);
   }
@@ -582,7 +691,6 @@
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
 
-  // Boot.
   resize();
   startBest.textContent = best > 0 ? "Best: " + best + " m" : "";
   requestAnimationFrame(idle);
