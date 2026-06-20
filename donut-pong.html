@@ -153,13 +153,17 @@
 
   // ---- World ----------------------------------------------------------------
   let W = 0, H = 0, DPR = 1;
+  const bg = document.createElement("canvas");   // pre-rendered scene (built on resize)
+  const bgx = bg.getContext("2d");
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2.5);
     W = window.innerWidth; H = window.innerHeight;
     canvas.width  = Math.floor(W * DPR);
     canvas.height = Math.floor(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (W && H && bgReady) buildBackground();
   }
+  let bgReady = false;
   window.addEventListener("resize", resize);
   resize();
 
@@ -431,40 +435,135 @@
 
   // ---- Draw -----------------------------------------------------------------
   // Warm Kowloon-at-night palette: red/gold dominant, jade + pink accents.
-  const SIGN_COLORS = ["#ff2f24", "#ffb01f", "#ff7a1a", "#36ff9b", "#ff4d8d", "#ffd23f", "#19e0d6"];
-  const SIGN_CHARS  = "龍鳳樂茶酒麵金發福香港夜燈龍門蛇王粥粉".split("");
+  const SIGN_COLORS = ["#ff2f24", "#ffb01f", "#ff7a1a", "#36ff9b", "#ff4d8d", "#ffd23f", "#19e0d6", "#ff5db1"];
+  const SIGN_CHARS  = "龍鳳樂茶酒麵金發福香港夜燈門蛇王粥粉珠寶錶行".split("");
   const trails = [];   // long-exposure traffic streaks
   let bgT = 0;
 
   function seeded(i) { const v = Math.sin(i * 127.1 + 0.7) * 43758.5; return v - Math.floor(v); }
 
+  // Pre-render the deep, soft-focus street ONCE into an offscreen canvas. The
+  // bokeh (out-of-focus light blobs) + wet-ground reflection are what read as
+  // "photographic depth," and baking them keeps the frame loop cheap.
+  function buildBackground() {
+    bg.width = Math.floor(W * DPR); bg.height = Math.floor(H * DPR);
+    bgx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    bgx.clearRect(0, 0, W, H);
+
+    // smoggy warm night gradient
+    const g = bgx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0,    "#240a06");
+    g.addColorStop(0.42, "#0b0402");
+    g.addColorStop(0.58, "#060503");
+    g.addColorStop(1,    "#02100a");
+    bgx.fillStyle = g; bgx.fillRect(0, 0, W, H);
+
+    const horizon = H * 0.5;
+
+    // ---- far layer: heavy bokeh (very blurred light blobs) ----
+    paintBokeh(bgx, 34, 22, 0.10, 0.30, horizon);
+    // ---- mid layer: blurred neon signboards down the edges ----
+    paintSigns(bgx, true);
+    paintSigns(bgx, false);
+    // ---- near layer: a few big soft bokeh discs catching the lens ----
+    paintBokeh(bgx, 9, 46, 0.12, 0.22, horizon);
+
+    // hazy glow hanging over the court
+    const halo = bgx.createRadialGradient(W * 0.5, horizon, 0, W * 0.5, horizon, Math.max(W, H) * 0.6);
+    halo.addColorStop(0, "rgba(255,150,60,0.10)");
+    halo.addColorStop(1, "rgba(255,150,60,0)");
+    bgx.fillStyle = halo; bgx.fillRect(0, 0, W, H);
+
+    // ---- wet-ground reflection: mirror the lower third, smeared vertically ----
+    bgx.save();
+    bgx.globalAlpha = 0.22;
+    bgx.translate(0, H);
+    bgx.scale(1, -0.5);
+    bgx.filter = "blur(3px)";
+    bgx.drawImage(bg, 0, 0, W * DPR, H * DPR, 0, 0, W, H);
+    bgx.restore();
+    bgx.filter = "none";
+    // darken the very bottom so the reflection fades into wet asphalt
+    const wet = bgx.createLinearGradient(0, H * 0.72, 0, H);
+    wet.addColorStop(0, "rgba(0,0,0,0)");
+    wet.addColorStop(1, "rgba(0,0,0,0.55)");
+    bgx.fillStyle = wet; bgx.fillRect(0, H * 0.72, W, H * 0.28);
+
+    bgReady = true;
+  }
+
+  function paintBokeh(c, count, size, aMin, aMax, horizon) {
+    c.save();
+    c.filter = "blur(" + Math.round(size * 0.5) + "px)";
+    c.globalCompositeOperation = "lighter";
+    for (let i = 0; i < count; i++) {
+      const x = seeded(i * 2.3 + 1) * W;
+      // cluster blobs toward the horizon for depth
+      const y = horizon + (seeded(i * 3.1 + 2) - 0.5) * H * 0.9;
+      const r = size * (0.4 + seeded(i * 1.7 + 3));
+      const col = SIGN_COLORS[Math.floor(seeded(i * 5.9 + 4) * SIGN_COLORS.length)];
+      const a = aMin + seeded(i * 4.2 + 5) * (aMax - aMin);
+      const rg = c.createRadialGradient(x, y, 0, x, y, r);
+      rg.addColorStop(0, hexA(col, a));
+      rg.addColorStop(0.6, hexA(col, a * 0.4));
+      rg.addColorStop(1, hexA(col, 0));
+      c.fillStyle = rg;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
+  }
+
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + a.toFixed(3) + ")";
+  }
+
+  // Slightly soft, glowing signboards jutting in from one edge — the mid-focus layer.
+  function paintSigns(c, leftSide) {
+    c.save();
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.filter = "blur(0.6px)";
+    const n = 8;
+    for (let k = 0; k < n; k++) {
+      const idx = leftSide ? k : k + 41;
+      const cy = H * 0.04 + (H * 0.92) * (k + 0.5) / n + (seeded(idx) - 0.5) * 26;
+      const rows = 2 + Math.floor(seeded(idx + 1) * 2);
+      const cw = 28 + seeded(idx + 2) * 14;
+      const ch = rows * 27 + 12;
+      const reach = cw * (0.45 + seeded(idx + 5) * 0.8);
+      const cx = leftSide ? -cw * 0.5 + reach : W + cw * 0.5 - reach;
+      const col = SIGN_COLORS[(idx * 3) % SIGN_COLORS.length];
+      // dark backing board
+      c.globalAlpha = 0.5; c.fillStyle = "rgba(0,0,0,0.55)"; c.shadowBlur = 0;
+      roundRectC(c, cx - cw / 2, cy - ch / 2, cw, ch, 6); c.fill();
+      // glowing tube outline + chars
+      c.globalAlpha = 0.92; c.shadowColor = col; c.shadowBlur = 16;
+      c.strokeStyle = col; c.lineWidth = 2;
+      roundRectC(c, cx - cw / 2, cy - ch / 2, cw, ch, 6); c.stroke();
+      c.fillStyle = col; c.shadowBlur = 12;
+      c.font = "700 20px 'Trebuchet MS', sans-serif";
+      for (let r = 0; r < rows; r++) {
+        c.fillText(SIGN_CHARS[(idx + r * 5) % SIGN_CHARS.length], cx, cy - ch / 2 + 18 + r * 27);
+      }
+    }
+    c.restore();
+  }
+
   function drawBackground() {
     bgT += 0.016;
-    // smoggy warm night: red haze up top, jade haze down low, near-black core
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0,    "#2c0805");
-    g.addColorStop(0.42, "#0d0402");
-    g.addColorStop(0.58, "#070603");
-    g.addColorStop(1,    "#03140c");
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(bg, 0, 0, W * DPR, H * DPR, 0, 0, W, H);
 
     const midY = H / 2;
-    // hazy neon glow hanging over the street
-    let halo = ctx.createRadialGradient(W * 0.5, midY, 0, W * 0.5, midY, Math.max(W, H) * 0.55);
-    halo.addColorStop(0, "rgba(255,140,40,0.10)");
-    halo.addColorStop(1, "rgba(255,140,40,0)");
-    ctx.fillStyle = halo; ctx.fillRect(0, 0, W, H);
-
-    // traffic light-trails sweeping across the wet street
+    // animated traffic light-trails sweeping across the wet street
     if (trails.length === 0) {
       for (let i = 0; i < 7; i++) {
         trails.push({
           y: H * (0.12 + seeded(i) * 0.76),
           x: seeded(i + 9) * W,
           sp: (seeded(i + 3) < 0.5 ? 1 : -1) * (1.4 + seeded(i + 5) * 2.6),
-          len: 70 + seeded(i + 7) * 160,
+          len: 80 + seeded(i + 7) * 180,
           col: seeded(i + 2) < 0.5 ? "#ff5a2a" : "#ffd23f",
-          a: 0.05 + seeded(i + 4) * 0.10,
+          a: 0.06 + seeded(i + 4) * 0.12,
         });
       }
     }
@@ -482,10 +581,6 @@
     }
     ctx.restore();
 
-    // dense stacked neon signage crammed down both edges
-    drawSignColumn(true);
-    drawSignColumn(false);
-
     // center "net" line glow
     ctx.save();
     ctx.globalAlpha = 0.6; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5;
@@ -495,44 +590,14 @@
     ctx.setLineDash([]);
   }
 
-  // A column of glowing sign-boards marching down one edge, jutting inward.
-  function drawSignColumn(leftSide) {
-    ctx.save();
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    const n = 7;
-    for (let k = 0; k < n; k++) {
-      const idx = leftSide ? k : k + 31;
-      const cy = H * 0.05 + (H * 0.9) * (k + 0.5) / n + (seeded(idx) - 0.5) * 24;
-      const rows = 2 + Math.floor(seeded(idx + 1) * 2);     // chars stacked per board
-      const cw = 26 + seeded(idx + 2) * 12;                 // board width
-      const ch = rows * 26 + 12;                            // board height
-      const reach = cw * (0.5 + seeded(idx + 5) * 0.7);     // how far it juts inward
-      const cx = leftSide ? -cw * 0.5 + reach : W + cw * 0.5 - reach;
-      const col = SIGN_COLORS[(idx * 3) % SIGN_COLORS.length];
-      const flick = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(bgT * (2 + seeded(idx) * 6) + idx));
-      ctx.globalAlpha = 0.5 * flick;
-      // board outline
-      ctx.shadowColor = col; ctx.shadowBlur = 14; ctx.strokeStyle = col; ctx.lineWidth = 2;
-      roundRect(cx - cw / 2, cy - ch / 2, cw, ch, 5); ctx.stroke();
-      // stacked characters
-      ctx.fillStyle = col; ctx.shadowBlur = 10;
-      ctx.font = "700 19px 'Trebuchet MS', sans-serif";
-      for (let r = 0; r < rows; r++) {
-        const c = SIGN_CHARS[(idx + r * 5) % SIGN_CHARS.length];
-        ctx.fillText(c, cx, cy - ch / 2 + 17 + r * 26);
-      }
-    }
-    ctx.restore();
-  }
-
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+  function roundRectC(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
   }
 
   function drawScores() {
@@ -559,75 +624,195 @@
     ctx.restore();
   }
 
+  // A shaded, glossy banana paddle painted from gradients: bowed crescent body,
+  // a bright specular ridge along the top, faceted shadow underneath, brown tips,
+  // plus a colored neon under-glow so each player's fruit reads at a glance.
   function drawBanana(b, color, faceUp) {
     const w = paddleW();
-    const swing = (b.x - (b.lastX ?? b.x)) * 0.04; // lean into the swing
-    ctx.save();
-    ctx.translate(b.x, b.y);
-    // neon hit-bar behind the fruit so the paddle reads from across the room
-    ctx.shadowColor = color; ctx.shadowBlur = 22;
-    ctx.fillStyle = color; ctx.globalAlpha = 0.9;
-    roundRect(-w / 2, -PADDLE_THICK * 0.34, w, PADDLE_THICK * 0.68, PADDLE_THICK * 0.34);
-    ctx.fill();
-    ctx.globalAlpha = 0.35; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 0;
-    roundRect(-w / 2 + 5, -2, w - 10, 4, 2); ctx.fill();
-    ctx.restore();
+    const hw = w / 2;
+    const T = Math.max(20, w * 0.16);        // banana cross-section thickness
+    const bow = T * 0.9;                       // how much the crescent bends
+    const swing = (b.x - (b.lastX ?? b.x)) * 0.035;
+    const dir = faceUp ? -1 : 1;               // concave side faces the field
 
-    // the actual 🍌 emoji, stretched into a flat paddle and tinted by its glow.
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(swing);
-    if (faceUp) ctx.scale(1, -1);            // top banana curves toward the field
-    const fs = w * 0.62;
-    ctx.font = fs + "px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.shadowColor = color; ctx.shadowBlur = 26;
-    // overlay a row of bananas so one wide paddle reads as banana, not a dot
-    ctx.scale(1.0, 0.92);
-    ctx.fillText("🍌", -w * 0.24, 0);
-    ctx.fillText("🍌",  0,        0);
-    ctx.fillText("🍌",  w * 0.24, 0);
+    ctx.scale(1, dir);                         // flip the whole fruit for the top player
+
+    // soft contact shadow
+    ctx.save();
+    ctx.globalAlpha = 0.3; ctx.fillStyle = "#000"; ctx.filter = "blur(5px)";
+    ctx.beginPath(); ctx.ellipse(0, T * 0.55, hw * 0.9, T * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // colored neon under-glow (player identity), bleeding out past the fruit
+    ctx.save();
+    ctx.shadowColor = color; ctx.shadowBlur = 26; ctx.globalAlpha = 0.55;
+    ctx.fillStyle = color;
+    bananaPath(hw, T, bow); ctx.fill();
+    ctx.restore();
+
+    // banana body path used for body + clip
+    bananaPath(hw, T, bow);
+    const body = ctx.createLinearGradient(0, -bow - T * 0.6, 0, T * 0.6);
+    body.addColorStop(0,    "#fff6c2");   // top highlight band
+    body.addColorStop(0.28, "#ffe35c");
+    body.addColorStop(0.6,  "#f7c41f");
+    body.addColorStop(0.85, "#d99a16");
+    body.addColorStop(1,    "#9c6b12");   // shadowed underside
+    ctx.fillStyle = body; ctx.fill();
+
+    // clip to the body for inner shading details
+    ctx.save();
+    bananaPath(hw, T, bow); ctx.clip();
+
+    // long specular highlight running along the upper ridge
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = T * 0.16; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-hw * 0.78, -bow * 0.5 - T * 0.22);
+    ctx.quadraticCurveTo(0, -bow - T * 0.28, hw * 0.78, -bow * 0.5 - T * 0.22);
+    ctx.stroke();
+
+    // faint facet ridges down the length (bananas have edges)
+    ctx.globalCompositeOperation = "multiply";
+    ctx.strokeStyle = "rgba(150,95,10,0.25)"; ctx.lineWidth = 1.5;
+    for (const off of [0.12, 0.34]) {
+      ctx.beginPath();
+      ctx.moveTo(-hw * 0.85, -bow * 0.4 + T * off);
+      ctx.quadraticCurveTo(0, -bow * 0.9 + T * off, hw * 0.85, -bow * 0.4 + T * off);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // brown tips at both ends
+    ctx.fillStyle = "#6e4a1d";
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.translate(s * hw * 0.97, 0);
+      ctx.beginPath(); ctx.ellipse(0, 0, T * 0.22, T * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // little stem nub on the left tip
+    ctx.fillStyle = "#4f3415";
+    ctx.fillRect(-hw * 1.02, -T * 0.12, T * 0.22, T * 0.24);
+
     ctx.restore();
   }
 
+  // Crescent banana outline centered at origin, bowing upward (negative y).
+  function bananaPath(hw, T, bow) {
+    ctx.beginPath();
+    // top edge (outer back of the banana)
+    ctx.moveTo(-hw, 0);
+    ctx.quadraticCurveTo(0, -bow - T, hw, 0);
+    // bottom edge (inner belly), back to start — shallower bow → crescent
+    ctx.quadraticCurveTo(0, -bow + T * 0.5, -hw, 0);
+    ctx.closePath();
+  }
+
+  // A dimensional, glossy donut: shaded dough torus, dripping glaze with a
+  // specular hot-spot, raised sprinkles, and a soft contact shadow. All gradients.
   function drawDonut() {
-    const r = donut.r;
+    const r = donut.r;            // outer radius
+    const ri = r * 0.34;          // hole radius
+    const tube = (r - ri) / 2;    // tube thickness
+    const tubeMid = (r + ri) / 2; // centerline radius of the tube
+    // light comes from upper-left
+    const lx = -0.55, ly = -0.6;
+
     ctx.save();
     ctx.translate(donut.x, donut.y);
-    ctx.rotate(donut.spin);
-    // glow
-    ctx.shadowColor = "#ff7ad1"; ctx.shadowBlur = 30;
-    // dough ring
-    ctx.lineWidth = r * 0.85;
-    ctx.strokeStyle = "#d98a3c";
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
-    // pink glaze, slightly offset blob edge
-    ctx.shadowBlur = 22; ctx.shadowColor = "#ff2d95";
-    ctx.lineWidth = r * 0.5;
-    ctx.strokeStyle = "#ff5db1";
+
+    // contact shadow on the ground below
+    ctx.save();
+    ctx.globalAlpha = 0.35; ctx.fillStyle = "#000";
+    ctx.filter = "blur(6px)";
+    ctx.beginPath(); ctx.ellipse(r * 0.18, r * 0.5, r * 0.95, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // --- dough body: ring stroked with a radial gradient for round volume ---
+    ctx.save();
+    ctx.rotate(donut.spin * 0.4);
+    const dough = ctx.createRadialGradient(lx * tubeMid, ly * tubeMid, 0, 0, 0, r);
+    dough.addColorStop(0,   "#f1b066");
+    dough.addColorStop(0.5, "#d68f3e");
+    dough.addColorStop(0.8, "#a9692a");
+    dough.addColorStop(1,   "#7c4a1c");
+    ctx.strokeStyle = dough; ctx.lineWidth = tube * 2;
+    ctx.beginPath(); ctx.arc(0, 0, tubeMid, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    // --- pink glaze pooled on top with an irregular drip edge ---
+    ctx.save();
+    ctx.rotate(donut.spin * 0.4);
     ctx.beginPath();
-    for (let a = 0; a <= Math.PI * 2 + 0.01; a += Math.PI / 12) {
-      const wob = r * 0.62 + Math.sin(a * 3 + donut.glaze) * r * 0.05;
-      const px = Math.cos(a) * wob, py = Math.sin(a) * wob;
+    const lobes = 11;
+    for (let a = 0; a <= Math.PI * 2 + 0.001; a += Math.PI / 60) {
+      const drip = 1 + Math.sin(a * lobes + donut.glaze) * 0.05 + Math.sin(a * 3.3) * 0.03;
+      const rad = (tubeMid + tube * 0.62) * drip;
+      const px = Math.cos(a) * rad, py = Math.sin(a) * rad;
       if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
-    ctx.stroke();
-    // sprinkles
-    ctx.shadowBlur = 0;
-    const sprinkleColors = ["#00e1ff", "#ffe14d", "#fff", "#7dff9e"];
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + 0.4;
-      const rr = r * 0.62 + Math.sin(i * 2) * r * 0.04;
+    // inner edge of glaze (back to center, leaving the hole)
+    for (let a = Math.PI * 2; a >= 0; a -= Math.PI / 60) {
+      const rad = (tubeMid - tube * 0.42);
+      ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+    }
+    ctx.closePath();
+    const glaze = ctx.createRadialGradient(lx * tubeMid, ly * tubeMid, tube * 0.2, 0, 0, r);
+    glaze.addColorStop(0,   "#ffd3ec");
+    glaze.addColorStop(0.4, "#ff86c4");
+    glaze.addColorStop(0.8, "#ff3d9e");
+    glaze.addColorStop(1,   "#d61f76");
+    ctx.fillStyle = glaze; ctx.fill();
+
+    // glossy specular highlight arc on the upper-left of the glaze
+    ctx.save();
+    ctx.clip();
+    ctx.globalCompositeOperation = "screen";
+    const spec = ctx.createRadialGradient(lx * tubeMid * 1.1, ly * tubeMid * 1.1, 0,
+                                          lx * tubeMid * 1.1, ly * tubeMid * 1.1, tube * 2.4);
+    spec.addColorStop(0, "rgba(255,255,255,0.85)");
+    spec.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = spec; ctx.fillRect(-r, -r, r * 2, r * 2);
+    ctx.restore();
+
+    // --- raised sprinkles riding the glaze ---
+    const sprinkleColors = ["#19e0d6", "#ffe14d", "#ffffff", "#7dff9e", "#5a8bff", "#ff5db1"];
+    for (let i = 0; i < 16; i++) {
+      const a = seeded(i + 70) * Math.PI * 2;
+      const rad = tubeMid + (seeded(i + 80) - 0.5) * tube * 1.1;
+      const px = Math.cos(a) * rad, py = Math.sin(a) * rad;
       ctx.save();
-      ctx.translate(Math.cos(a) * rr, Math.sin(a) * rr);
-      ctx.rotate(a * 2);
+      ctx.translate(px, py);
+      ctx.rotate(seeded(i + 90) * Math.PI * 2);
+      // tiny drop shadow
+      ctx.fillStyle = "rgba(120,20,70,0.5)";
+      ctx.fillRect(-r * 0.035 + 0.6, -r * 0.11 + 0.8, r * 0.07, r * 0.22);
       ctx.fillStyle = sprinkleColors[i % sprinkleColors.length];
-      ctx.fillRect(-r * 0.04, -r * 0.12, r * 0.08, r * 0.24);
+      ctx.fillRect(-r * 0.035, -r * 0.11, r * 0.07, r * 0.22);
+      // sprinkle highlight
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
+      ctx.fillRect(-r * 0.02, -r * 0.1, r * 0.018, r * 0.12);
       ctx.restore();
     }
-    // hole shadow
+    ctx.restore();
+
+    // --- the hole: punch it out, then shade its inner wall ---
+    ctx.save();
     ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, ri, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // inner-wall ambient occlusion ring
+    ctx.save();
+    ctx.lineWidth = tube * 0.5;
+    ctx.strokeStyle = "rgba(60,30,10,0.55)";
+    ctx.beginPath(); ctx.arc(0, 0, ri + tube * 0.2, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
     ctx.restore();
   }
 
@@ -670,6 +855,7 @@
   }
 
   resetPositions();
+  buildBackground();   // bgReady flips true here; resize() can rebuild after
   frame();
 })();
 </script>
