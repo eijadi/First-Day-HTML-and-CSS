@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0014">
+<title>Donut Pong — 霓虹</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #06000f;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    color: #fdf0ff;
+  }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* CRT scanline + vignette skin over everything */
+  #crt {
+    pointer-events: none;
+    position: fixed; inset: 0; z-index: 5;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0px, rgba(0,0,0,0.16) 1px, transparent 2px, transparent 3px),
+      radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
+    mix-blend-mode: multiply;
+    opacity: 0.7;
+  }
+
+  /* Overlay screens */
+  .screen {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 28px;
+    background:
+      radial-gradient(80% 60% at 50% 18%, rgba(255,0,128,0.16), transparent 70%),
+      radial-gradient(80% 60% at 50% 82%, rgba(0,225,255,0.16), transparent 70%),
+      rgba(6,0,15,0.86);
+    backdrop-filter: blur(3px);
+  }
+  .screen.hidden { display: none; }
+
+  .kanji {
+    font-size: clamp(34px, 9vw, 70px);
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: #ff2d95;
+    text-shadow: 0 0 6px #ff2d95, 0 0 22px #ff2d95, 0 0 44px rgba(255,45,149,0.6);
+  }
+  .title {
+    margin-top: 8px;
+    font-size: clamp(40px, 13vw, 88px);
+    font-weight: 900; line-height: 0.92; letter-spacing: 2px;
+    color: #fff;
+    text-shadow:
+      0 0 4px #00e1ff, 0 0 18px #00e1ff,
+      2px 2px 0 #ff2d95, 4px 4px 18px rgba(255,45,149,0.7);
+  }
+  .sub {
+    margin-top: 20px; max-width: 460px;
+    font-size: clamp(15px, 4.4vw, 20px); line-height: 1.5;
+    color: #cfd6ff; opacity: 0.95;
+  }
+  .sub b { color: #ffe14d; font-weight: 700; }
+  .emojis { font-size: clamp(40px, 13vw, 76px); margin: 14px 0 4px; letter-spacing: 6px; }
+
+  .btnrow { display: flex; flex-direction: column; gap: 16px; margin-top: 34px; width: min(86vw, 360px); }
+  .btn {
+    position: relative;
+    background: linear-gradient(180deg, #1a0030, #10001f);
+    color: #fff;
+    border: 2px solid #ff2d95;
+    border-radius: 14px;
+    padding: 18px 24px;
+    font-size: clamp(18px, 5.4vw, 24px);
+    font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255,45,149,0.55), inset 0 0 16px rgba(255,45,149,0.18);
+    transition: transform .06s ease, box-shadow .15s ease;
+  }
+  .btn .zh { display: block; font-size: 0.62em; letter-spacing: 5px; color: #ff8ac6; margin-top: 4px; font-weight: 700; }
+  .btn.cyan { border-color: #00e1ff; box-shadow: 0 0 10px rgba(0,225,255,0.55), inset 0 0 16px rgba(0,225,255,0.18); }
+  .btn.cyan .zh { color: #7af0ff; }
+  .btn:active { transform: translateY(3px) scale(0.99); }
+  .small { margin-top: 26px; font-size: clamp(13px, 3.6vw, 16px); color: #9fb0d8; opacity: 0.8; line-height: 1.5; }
+  .small b { color: #ffe14d; }
+
+  .winner { font-size: clamp(48px, 16vw, 110px); font-weight: 900; line-height: 1; }
+  .winner.pink { color: #ff2d95; text-shadow: 0 0 6px #ff2d95, 0 0 30px #ff2d95; }
+  .winner.cyan { color: #00e1ff; text-shadow: 0 0 6px #00e1ff, 0 0 30px #00e1ff; }
+  .label { font-size: clamp(14px, 4vw, 18px); letter-spacing: 4px; text-transform: uppercase; color: #cfd6ff; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game"></canvas></div>
+<div id="crt"></div>
+
+<!-- Start screen -->
+<div id="startScreen" class="screen">
+  <div class="kanji">甜甜圈</div>
+  <div class="title">DONUT<br>PONG</div>
+  <div class="emojis">🍩&nbsp;🍌</div>
+  <div class="sub">
+    A <b>donut</b> rockets top to bottom. Swing your <b>banana</b> to slap it back.
+    Miss it and your rival scores. First to <b>7</b> lights up the night.
+  </div>
+  <div class="btnrow">
+    <button class="btn cyan" id="btnOne">1 Player<span class="zh">單人 · vs 電腦</span></button>
+    <button class="btn" id="btnTwo">2 Players<span class="zh">雙人 · 同機對戰</span></button>
+  </div>
+  <div class="small">
+    <b>Two-player:</b> lay the phone flat between you. The <b>top half</b> of the
+    glass moves the top banana, the <b>bottom half</b> moves yours. Slide your finger.
+  </div>
+</div>
+
+<!-- Game over screen -->
+<div id="overScreen" class="screen hidden">
+  <div class="label" id="overLabel">Winner</div>
+  <div class="kanji" id="overKanji">勝</div>
+  <div class="winner pink" id="overWinner">P1</div>
+  <div class="sub" id="overScore">7 — 3</div>
+  <div class="btnrow">
+    <button class="btn cyan" id="btnAgain">Rematch<span class="zh">再來一局</span></button>
+    <button class="btn" id="btnMenu">Menu<span class="zh">返回</span></button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const startScreen = document.getElementById("startScreen");
+  const overScreen  = document.getElementById("overScreen");
+  const btnOne   = document.getElementById("btnOne");
+  const btnTwo   = document.getElementById("btnTwo");
+  const btnAgain = document.getElementById("btnAgain");
+  const btnMenu  = document.getElementById("btnMenu");
+  const overLabel  = document.getElementById("overLabel");
+  const overKanji  = document.getElementById("overKanji");
+  const overWinner = document.getElementById("overWinner");
+  const overScore  = document.getElementById("overScore");
+
+  // ---- World ----------------------------------------------------------------
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width  = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  const WIN_SCORE = 7;
+  // top player = index 0 (cyan), bottom player = index 1 (pink, also human in 1P)
+  const TOP = 0, BOT = 1;
+  const PINK = "#ff2d95", CYAN = "#00e1ff", GOLD = "#ffe14d";
+
+  let mode = "two";        // "one" (vs CPU) or "two"
+  let state = "menu";      // menu | play | point | over
+  let scores = [0, 0];
+
+  // Paddle (banana) geometry, in px
+  function paddleW() { return Math.max(96, Math.min(W * 0.34, 200)); }
+  const PADDLE_THICK = 20;
+  const EDGE = 0.085;      // banana center sits this fraction in from each end
+
+  const banana = [
+    { x: 0, y: 0, tx: 0 },   // TOP
+    { x: 0, y: 0, tx: 0 },   // BOT
+  ];
+
+  // Donut
+  const donut = { x: 0, y: 0, vx: 0, vy: 0, r: 0, spin: 0, glaze: 0 };
+
+  function donutR() { return Math.max(20, Math.min(W * 0.075, 40)); }
+
+  function resetPositions() {
+    banana[TOP].y = H * EDGE;
+    banana[BOT].y = H * (1 - EDGE);
+    banana[TOP].x = banana[TOP].tx = W / 2;
+    banana[BOT].x = banana[BOT].tx = W / 2;
+  }
+
+  function serve(towardBottom) {
+    donut.r = donutR();
+    donut.x = W / 2;
+    donut.y = H / 2;
+    const speed = Math.min(W, H) * 0.011;
+    const ang = (Math.random() * 0.7 - 0.35); // spread off-vertical
+    donut.vx = Math.sin(ang) * speed;
+    donut.vy = (towardBottom ? 1 : -1) * Math.cos(ang) * speed;
+    donut.spin = 0;
+    donut.glaze = Math.random() * Math.PI * 2;
+  }
+
+  function newGame(m) {
+    mode = m;
+    scores = [0, 0];
+    resetPositions();
+    serve(Math.random() < 0.5);
+    state = "play";
+    startScreen.classList.add("hidden");
+    overScreen.classList.add("hidden");
+  }
+
+  // ---- Touch: split the glass into two control zones ------------------------
+  // Each active touch is bound to the half it began in; that half's banana
+  // tracks the touch's x. This is what turns the phone into a 2-player console.
+  const owners = { [TOP]: null, [BOT]: null }; // touch identifier per half
+
+  function half(y) { return y < H / 2 ? TOP : BOT; }
+
+  function onStart(e) {
+    if (state === "menu" || state === "over") return;
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const y = t.clientY;
+      let h = half(y);
+      // In 1-player mode the top banana is the CPU; route every touch to BOT.
+      if (mode === "one") h = BOT;
+      if (owners[h] === null) {
+        owners[h] = t.identifier;
+        banana[h].tx = clampPaddle(t.clientX);
+      }
+    }
+  }
+  function onMove(e) {
+    if (state === "menu" || state === "over") return;
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      for (const h of [TOP, BOT]) {
+        if (owners[h] === t.identifier) banana[h].tx = clampPaddle(t.clientX);
+      }
+    }
+  }
+  function onEnd(e) {
+    for (const t of e.changedTouches) {
+      for (const h of [TOP, BOT]) {
+        if (owners[h] === t.identifier) owners[h] = null;
+      }
+    }
+  }
+  function clampPaddle(x) {
+    const hw = paddleW() / 2;
+    return Math.max(hw, Math.min(W - hw, x));
+  }
+
+  canvas.addEventListener("touchstart", onStart, { passive: false });
+  canvas.addEventListener("touchmove",  onMove,  { passive: false });
+  canvas.addEventListener("touchend",   onEnd,   { passive: false });
+  canvas.addEventListener("touchcancel",onEnd,   { passive: false });
+
+  // Mouse fallback (desktop): drag controls the bottom banana.
+  let mouseDown = false;
+  canvas.addEventListener("mousedown", (e) => {
+    if (state !== "play" && state !== "point") return;
+    mouseDown = true; banana[BOT].tx = clampPaddle(e.clientX);
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (mouseDown) banana[BOT].tx = clampPaddle(e.clientX);
+  });
+  window.addEventListener("mouseup", () => { mouseDown = false; });
+
+  // ---- Buttons --------------------------------------------------------------
+  btnOne.addEventListener("click", () => newGame("one"));
+  btnTwo.addEventListener("click", () => newGame("two"));
+  btnAgain.addEventListener("click", () => newGame(mode));
+  btnMenu.addEventListener("click", () => {
+    state = "menu";
+    overScreen.classList.add("hidden");
+    startScreen.classList.remove("hidden");
+  });
+
+  // ---- Effects --------------------------------------------------------------
+  const sparks = [];
+  function burst(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 1 + Math.random() * 4;
+      sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, color });
+    }
+  }
+  let flash = null; // { text, x, y, life, color }
+  let shake = 0;
+
+  // ---- Update ---------------------------------------------------------------
+  let pointDelay = 0;
+
+  function cpuThink() {
+    // Top banana chases the donut when it's heading up; rests near center otherwise.
+    const targetX = donut.vy < 0 ? donut.x + donut.vx * 6 : W / 2;
+    const ease = 0.085;             // imperfect → beatable
+    const jitter = (Math.random() - 0.5) * 6;
+    banana[TOP].tx = clampPaddle(banana[TOP].tx + (targetX + jitter - banana[TOP].tx) * ease);
+  }
+
+  function reflect(side) {
+    const b = banana[side];
+    const hw = paddleW() / 2;
+    const off = (donut.x - b.x) / hw;          // -1..1 across the banana
+    const speed = Math.hypot(donut.vx, donut.vy) * 1.045; // ramp up each volley
+    // The banana's curve throws the donut: edges angle it more.
+    const angle = off * 0.95;                  // up to ~54° off straight
+    const dir = side === TOP ? 1 : -1;         // send away from this banana
+    donut.vx = Math.sin(angle) * speed + (b.x - b.lastX || 0) * 0.12;
+    donut.vy = dir * Math.abs(Math.cos(angle) * speed);
+    const cap = Math.min(W, H) * 0.03;
+    const sp = Math.hypot(donut.vx, donut.vy);
+    if (sp > cap) { donut.vx *= cap / sp; donut.vy *= cap / sp; }
+    burst(donut.x, donut.y, side === TOP ? CYAN : PINK, 16);
+    shake = 7;
+  }
+
+  function point(scorer) {
+    scores[scorer]++;
+    const col = scorer === TOP ? CYAN : PINK;
+    burst(donut.x, donut.y, col, 40);
+    shake = 12;
+    if (scores[scorer] >= WIN_SCORE) { gameOver(scorer); return; }
+    state = "point";
+    pointDelay = 45;
+  }
+
+  function gameOver(winner) {
+    state = "over";
+    const cpuLoss = (mode === "one" && winner === TOP);
+    overLabel.textContent = mode === "one"
+      ? (winner === BOT ? "You win" : "Computer wins")
+      : "Winner";
+    overKanji.textContent = "勝";
+    overWinner.className = "winner " + (winner === TOP ? "cyan" : "pink");
+    overWinner.textContent = mode === "one"
+      ? (winner === BOT ? "YOU" : "CPU")
+      : (winner === TOP ? "TOP" : "BOTTOM");
+    overScore.textContent = scores[BOT] + " — " + scores[TOP];
+    overKanji.style.color = winner === TOP ? CYAN : PINK;
+    overKanji.style.textShadow = "0 0 6px " + (winner === TOP ? CYAN : PINK) +
+      ", 0 0 30px " + (winner === TOP ? CYAN : PINK);
+    setTimeout(() => overScreen.classList.remove("hidden"), 350);
+  }
+
+  function update() {
+    if (mode === "one" && (state === "play" || state === "point")) cpuThink();
+
+    // smooth banana motion toward target
+    for (const b of banana) {
+      b.lastX = b.x;
+      b.x += (b.tx - b.x) * 0.5;
+    }
+
+    if (state === "point") {
+      if (--pointDelay <= 0) { serve(Math.random() < 0.5); state = "play"; }
+    }
+
+    if (state !== "play") return;
+
+    donut.x += donut.vx;
+    donut.y += donut.vy;
+    donut.spin += donut.vx * 0.02 + 0.04;
+
+    // side walls
+    if (donut.x - donut.r < 0) { donut.x = donut.r; donut.vx = Math.abs(donut.vx); burst(0, donut.y, GOLD, 6); }
+    if (donut.x + donut.r > W) { donut.x = W - donut.r; donut.vx = -Math.abs(donut.vx); burst(W, donut.y, GOLD, 6); }
+
+    const hw = paddleW() / 2;
+
+    // top banana
+    const tb = banana[TOP];
+    if (donut.vy < 0 && donut.y - donut.r <= tb.y + PADDLE_THICK / 2 && donut.y > tb.y - PADDLE_THICK) {
+      if (Math.abs(donut.x - tb.x) <= hw + donut.r * 0.6) {
+        donut.y = tb.y + PADDLE_THICK / 2 + donut.r; reflect(TOP);
+      }
+    }
+    // bottom banana
+    const bb = banana[BOT];
+    if (donut.vy > 0 && donut.y + donut.r >= bb.y - PADDLE_THICK / 2 && donut.y < bb.y + PADDLE_THICK) {
+      if (Math.abs(donut.x - bb.x) <= hw + donut.r * 0.6) {
+        donut.y = bb.y - PADDLE_THICK / 2 - donut.r; reflect(BOT);
+      }
+    }
+
+    // scoring (donut leaves the field)
+    if (donut.y - donut.r > H) point(TOP);     // bottom missed → top scores
+    else if (donut.y + donut.r < 0) point(BOT); // top missed → bottom scores
+
+    // sparks
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.x += s.vx; s.y += s.vy; s.vy += 0.06; s.life -= 0.03;
+      if (s.life <= 0) sparks.splice(i, 1);
+    }
+    if (shake > 0) shake *= 0.85;
+    if (shake < 0.3) shake = 0;
+  }
+
+  // ---- Draw -----------------------------------------------------------------
+  function drawBackground() {
+    // deep dusk gradient: magenta up top, cyan down low
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#1a0030");
+    g.addColorStop(0.5, "#0a0018");
+    g.addColorStop(1, "#001824");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    // perspective neon grid receding to the horizon at mid-court
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = "#ff2d95"; ctx.lineWidth = 1;
+    const midY = H / 2;
+    // verticals fanning out from center
+    for (let i = -10; i <= 10; i++) {
+      ctx.beginPath();
+      ctx.moveTo(W / 2 + i * (W / 8), 0);
+      ctx.lineTo(W / 2 + i * 22, midY);
+      ctx.moveTo(W / 2 + i * (W / 8), H);
+      ctx.lineTo(W / 2 + i * 22, midY);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "#00e1ff";
+    for (let i = 1; i <= 8; i++) {
+      const f = i / 8;
+      const yTop = midY - Math.pow(f, 1.8) * midY;
+      const yBot = midY + Math.pow(f, 1.8) * midY;
+      ctx.beginPath(); ctx.moveTo(0, yTop); ctx.lineTo(W, yTop); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, yBot); ctx.lineTo(W, yBot); ctx.stroke();
+    }
+    ctx.restore();
+
+    // center "net" line glow
+    ctx.save();
+    ctx.globalAlpha = 0.6; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 14]); ctx.shadowColor = GOLD; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(W, midY); ctx.stroke();
+    ctx.restore();
+    ctx.setLineDash([]);
+
+    // vertical neon signage on the edges (Kowloon flavor)
+    drawSign(14, "九龍", PINK);
+    drawSign(W - 30, "霓虹", CYAN);
+  }
+
+  function drawSign(x, text, color) {
+    ctx.save();
+    ctx.font = "700 22px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.shadowColor = color; ctx.shadowBlur = 14; ctx.fillStyle = color;
+    ctx.globalAlpha = 0.85;
+    const chars = [...text];
+    chars.forEach((c, i) => ctx.fillText(c, x, H * 0.30 + i * 28));
+    ctx.restore();
+  }
+
+  function drawScores() {
+    ctx.save();
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    // Top score rendered upside-down for the player across the table.
+    ctx.save();
+    ctx.translate(W / 2, H * 0.36); ctx.rotate(Math.PI);
+    neonText(String(scores[TOP]), 0, 0, CYAN, Math.min(W * 0.26, 150));
+    ctx.restore();
+    // Bottom score, upright.
+    neonText(String(scores[BOT]), W / 2, H * 0.64, PINK, Math.min(W * 0.26, 150));
+    ctx.restore();
+  }
+
+  function neonText(t, x, y, color, size) {
+    ctx.save();
+    ctx.font = "900 " + size + "px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.globalAlpha = 0.18; ctx.fillStyle = color;
+    ctx.shadowColor = color; ctx.shadowBlur = 24; ctx.fillText(t, x, y);
+    ctx.globalAlpha = 0.9; ctx.lineWidth = 2; ctx.strokeStyle = color;
+    ctx.shadowBlur = 16; ctx.strokeText(t, x, y);
+    ctx.restore();
+  }
+
+  function drawBanana(b, color, faceUp) {
+    const hw = paddleW() / 2;
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    // a banana = a fat neon crescent. faceUp: curve opens toward the donut field.
+    const bend = faceUp ? -1 : 1;
+    ctx.shadowColor = color; ctx.shadowBlur = 22;
+    ctx.lineCap = "round";
+    // outer glow stroke (banana body)
+    ctx.strokeStyle = color; ctx.lineWidth = PADDLE_THICK;
+    ctx.beginPath();
+    ctx.moveTo(-hw, 0);
+    ctx.quadraticCurveTo(0, bend * PADDLE_THICK * 1.5, hw, 0);
+    ctx.stroke();
+    // bright inner fill (the fruit's pale core)
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = PADDLE_THICK * 0.34;
+    ctx.beginPath();
+    ctx.moveTo(-hw + 6, 0);
+    ctx.quadraticCurveTo(0, bend * PADDLE_THICK * 1.3, hw - 6, 0);
+    ctx.stroke();
+    // little stem nub on one end
+    ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(-hw, 0, PADDLE_THICK * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDonut() {
+    const r = donut.r;
+    ctx.save();
+    ctx.translate(donut.x, donut.y);
+    ctx.rotate(donut.spin);
+    // glow
+    ctx.shadowColor = "#ff7ad1"; ctx.shadowBlur = 30;
+    // dough ring
+    ctx.lineWidth = r * 0.85;
+    ctx.strokeStyle = "#d98a3c";
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
+    // pink glaze, slightly offset blob edge
+    ctx.shadowBlur = 22; ctx.shadowColor = "#ff2d95";
+    ctx.lineWidth = r * 0.5;
+    ctx.strokeStyle = "#ff5db1";
+    ctx.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + 0.01; a += Math.PI / 12) {
+      const wob = r * 0.62 + Math.sin(a * 3 + donut.glaze) * r * 0.05;
+      const px = Math.cos(a) * wob, py = Math.sin(a) * wob;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    // sprinkles
+    ctx.shadowBlur = 0;
+    const sprinkleColors = ["#00e1ff", "#ffe14d", "#fff", "#7dff9e"];
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.4;
+      const rr = r * 0.62 + Math.sin(i * 2) * r * 0.04;
+      ctx.save();
+      ctx.translate(Math.cos(a) * rr, Math.sin(a) * rr);
+      ctx.rotate(a * 2);
+      ctx.fillStyle = sprinkleColors[i % sprinkleColors.length];
+      ctx.fillRect(-r * 0.04, -r * 0.12, r * 0.08, r * 0.24);
+      ctx.restore();
+    }
+    // hole shadow
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSparks() {
+    for (const s of sparks) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, s.life);
+      ctx.fillStyle = s.color; ctx.shadowColor = s.color; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function draw() {
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    drawBackground();
+    drawScores();
+    drawSparks();
+    if (state === "play" || state === "point") {
+      drawBanana(banana[TOP], CYAN, true);
+      drawBanana(banana[BOT], PINK, false);
+      if (state === "play") drawDonut();
+    }
+    ctx.restore();
+  }
+
+  // ---- Loop -----------------------------------------------------------------
+  function frame() {
+    if (state === "play" || state === "point") update();
+    else { // keep sparks alive on menus for ambiance
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i]; s.x += s.vx; s.y += s.vy; s.vy += 0.06; s.life -= 0.03;
+        if (s.life <= 0) sparks.splice(i, 1);
+      }
+    }
+    if (state !== "menu") draw();
+    else { ctx.save(); drawBackground(); ctx.restore(); }
+    requestAnimationFrame(frame);
+  }
+
+  resetPositions();
+  frame();
+})();
+</script>
+</body>
+</html>
